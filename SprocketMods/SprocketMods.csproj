@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Sprocket.Mods</AssemblyName>
+    <RootNamespace>SprocketMods</RootNamespace>
+    <Version>1.2.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BepInEx.Core"><HintPath>$(BepInExCore)\BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.Common"><HintPath>$(BepInExCore)\BepInEx.Unity.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(BepInExCore)\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(BepInExCore)\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Common"><HintPath>$(BepInExCore)\Il2CppInterop.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(BepInExCore)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <!-- ゲームの interop アセンブリ（BepInEx が初回起動時に生成） -->
+    <Reference Include="$(BepInExInterop)\*.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 翻訳ファイル。ユーザーが編集する user*.txt と _untranslated.txt は配布物に含めない（上書きしない） -->
+    <LanguageFile Include="Languages\**\*" Exclude="Languages\**\user*.txt;Languages\**\_untranslated.txt" />
+  </ItemGroup>
+  <Target Name="Deploy" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\BepInEx\plugins\SprocketMods" />
+    <Copy SourceFiles="@(LanguageFile)" DestinationFiles="@(LanguageFile->'$(GameDir)\BepInEx\plugins\SprocketMods\Languages\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+</Project>

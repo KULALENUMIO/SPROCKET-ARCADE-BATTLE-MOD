@@ -1,0 +1,253 @@
+# Sprocket Mods（このMOD）の表示テキスト
+# 書式: 原文=訳文   数値は {0} {1} …、改行は \n、= は \= と書く
+
+## ===================================================== Ballistics HUD
+PEN=貫通
+PEN?=一部貫通
+NO PEN=貫通不可
+RICOCHET=跳弾
+HE (no AP sim)=榴弾（貫通計算なし）
+UNKNOWN=判定不能
+FRIENDLY=味方
+OWN VEHICLE=自車
+NOT ENEMY=敵戦車ではない
+NO IMPACT=着弾なし
+
+## ===================================================== 設定画面の MODS タブ
+Arcade Battle Mode=アーケードバトルモード
+World of Tanks-like driving: smooth automatic shifting, quick acceleration and turning, stable grip and level braking. Toggle in game with {0}.=World of Tanks のような操縦: 滑らかな自動変速、素早い加速と旋回、安定した接地、傾かないブレーキ。ゲーム中は {0} で切り替え。
+r:^World of Tanks-like driving: smooth automatic shifting, quick acceleration and turning, stable grip and level braking\. Toggle in game with (.+)\.$=World of Tanks のような操縦: 滑らかな自動変速、素早い加速と旋回、安定した接地、傾かないブレーキ。ゲーム中は $1 で切り替え。
+Max engine torque=エンジントルクを常に最大
+Keep the engine at its peak torque at any RPM.=回転数に関係なくエンジンを最大トルクに保ちます。
+Quick gear shifts=素早い変速
+Remove the crew's 1-3 s gear change delay and shorten gear engagement.=乗員の 1〜3 秒の変速待ちをなくし、ギアの接続も短くします。
+Acceleration (x engine power)=加速力（エンジン出力の倍率）
+Max acceleration (m/s2)=最大加速度（m/s²）
+Brake deceleration (m/s2)=ブレーキ減速度（m/s²）
+Coast deceleration (m/s2)=惰性減速度（m/s²）
+Reverse speed (km/h)=後退速度（km/h）
+Turn rate (deg/s)=旋回速度（度/秒）
+Turn rate at speed (deg/s)=高速時の旋回速度（度/秒）
+Turn response (rad/s2)=旋回の反応（rad/s²）
+Invert steering in reverse=後退時にステアを反転
+Steer like a car while reversing.=後退中は車のように操舵します。
+Lateral grip=横方向のグリップ
+Stability (pitch/roll damping)=安定性（揺れの抑制）
+Downforce (g)=押し付け力（g）
+Snappy turret and gun=砲塔・主砲のキビキビ旋回
+Turret traverse and gun elevation move at full speed with no easing and stop instantly. Speed depends on the vehicle's era.=砲塔の旋回と主砲の俯仰を加減速なしの全速で動かし、ピタッと止めます。速度は車両の年代で変わります。
+Turret speed (x era speed)=砲塔速度（年代速度の倍率）
+Ballistics HUD=弾道 HUD
+Impact crosshair with penetration indicator. Toggle in game with {0}.=貫通インジケーター付きの着弾クロスヘア。ゲーム中は {0} で切り替え。
+r:^Impact crosshair with penetration indicator\. Toggle in game with (.+)\.$=貫通インジケーター付きの着弾クロスヘア。ゲーム中は $1 で切り替え。
+Show trajectory line=弾道線を表示
+r:^Toggle in game with (.+)\.$=ゲーム中は $1 で切り替え。
+Show distance=距離を表示
+Show verdict text=判定を文字で表示
+PEN / NO PEN / RICOCHET ...=貫通 / 貫通不可 / 跳弾 …
+Show impact details=着弾の詳細を表示
+Impact speed, flight time and angle.=着弾速度・飛翔時間・入射角。
+Crosshair size (px)=クロスヘアの大きさ（px）
+Language=言語
+Display language. Translations are in BepInEx/plugins/SprocketMods/Languages.=表示言語。翻訳ファイルは BepInEx/plugins/SprocketMods/Languages にあります。
+Off (English)=オフ（英語）
+Auto (Windows language)=自動（Windows の言語）
+Collect untranslated texts=未翻訳のテキストを収集
+Saves texts without a translation to Languages/<language>/_untranslated.txt so they can be translated later.=訳のないテキストを Languages/<言語>/_untranslated.txt に保存し、後で翻訳できるようにします。
+Reload translations=翻訳を再読み込み
+
+## ===================================================== War Thunder 風の右クリック操作
+War Thunder-style right click=War Thunder 風の右クリック操作
+Right-click camera controls=右クリックで視点切り替え
+r:^Key: (.+)\. Not active while giving orders or with the cursor shown\.$=キー: $1。命令を出しているときやカーソル表示中は無効。
+Scope: toggle max / min zoom=照準器の倍率切り替え
+While aiming through the gunner sight, switch between maximum and minimum zoom.=照準器を覗いているとき、最大倍率と最低倍率を切り替えます。
+Third person: toggle cupola view=キューポラ視点の切り替え
+In third person, switch to the commander's cupola view and back.=三人称視点のとき、車長キューポラ視点と三人称視点を切り替えます。
+Transition time (s)=切り替え時間（秒）
+
+## ===================================================== 機関砲
+Autocannons=機関砲
+Cannons named with [AC magazine/rpm], e.g. [AC 10/450], fire automatically from a magazine. One shell from the rack is one magazine.=名前に [AC 弾倉サイズ/毎分発射数]（例: [AC 10/450]）を含む砲は、弾倉から連射します。弾薬庫の砲弾 1 発が 1 弾倉です。
+Magazine reload time (s)=弾倉の交換時間（秒）
+No autocannon recoil=機関砲の反動なし
+No hull impulse, screen shake or barrel recoil when an autocannon fires.=機関砲の発射で車体の衝撃・画面の揺れ・砲身の後退が起きないようにします。
+Show magazine counter=残弾を表示
+Rounds left and magazine reload progress for your selected autocannon.=選択中の機関砲の残弾と、弾倉交換の進み具合を表示します。
+RELOADING {0} s=弾倉交換 {0} 秒
+NO AMMO=弾切れ
+{0} / {1}={0} / {1}
+No autocannon muzzle smoke=機関砲の発砲煙なし
+Autocannons keep the firing sound and a brief flash, but leave no smoke.=機関砲は発砲音と一瞬の閃光だけ残し、煙を出しません。
+Autocannon muzzle flash (s)=機関砲の閃光の長さ（秒）
+
+## ===================================================== キルログ
+## $K = 撃破した車両、$V = 撃破された車両（語順は自由に変えてよい）
+$K destroyed $V=$K が $V を撃破
+$V destroyed=$V 撃破
+$K immobilized $V=$K が $V を行動不能に
+$V immobilized=$V 行動不能
+Kill feed=キルログ
+Shows who destroyed whom at the top right of the screen.=画面右上に、誰が誰を撃破したかを表示します。
+Show immobilized vehicles=行動不能も表示
+Also log vehicles that can no longer move but are still armed.=走行できなくなった（武装は生きている）車両も表示します。
+Kill feed lines=キルログの行数
+Kill feed duration (s)=キルログの表示時間（秒）
+Kill feed text size=キルログの文字の大きさ
+
+## ===================================================== 命中結果（War Thunder 風）
+KNOCKED OUT=撃破
+PENETRATION=貫通
+NON-PENETRATION=非貫通
+No damage=損害なし
+On fire=火災
+destroyed=破壊
+damaged=損傷
+killed=戦死
+wounded=負傷
+Commander=車長
+Gunner=砲手
+Loader=装填手
+Driver=操縦手
+Radio operator=無線手
+Crew=乗員
+Engine=エンジン
+Exhaust=排気管
+Drivetrain=駆動系
+Fuel tank=燃料タンク
+Ammo rack=弾薬庫
+Main gun=主砲
+Turret drive=砲塔旋回装置
+Turret ring=ターレットリング
+Turret basket=砲塔バスケット
+Elevation drive=俯仰装置
+Track=履帯
+Road wheels=転輪
+Suspension=サスペンション
+Radio=無線機
+Gun sight=照準器
+Vision port=視察口
+Cupola=キューポラ
+Mantlet=防盾
+Hit report=命中結果
+Shows the result of your hits (penetration, ricochet...) and the modules and crew you damaged.=自分の弾の命中結果（貫通・跳弾など）と、損傷を与えたモジュール・乗員を表示します。
+Damaged module markers=損傷モジュールのマーカー
+Briefly marks the position of damaged modules on the target.=損傷を与えたモジュールの位置に一瞬マーカーを出します。
+Hit report duration (s)=命中結果の表示時間（秒）
+Hit report text size=命中結果の文字の大きさ
+
+## ===================================================== 照準した車両の情報
+Enemy=敵
+Friendly=味方
+Enemy wreck=敵の残骸
+Friendly wreck=味方の残骸
+Wreck=残骸
+Operational=稼働中
+Immobilized=行動不能
+Knocked out=撃破済み
+Target info=照準した車両の情報
+Shows the name, side, knocked-out state, crew and engine condition of the vehicle under your crosshair.=照準の先にある車両の名前・敵味方・撃破済みか・乗員・エンジンなどの状態を表示します。
+Show friendly vehicles=味方の車両も表示
+Also shows information for friendly vehicles and wrecks.=味方の車両と残骸の情報も表示します。
+Show target distance=距離を表示
+Shows the distance to the vehicle.=車両までの距離を表示します。
+Target info text size=車両情報の文字の大きさ
+
+## ===================================================== HUD の見た目
+HUD appearance=HUD の見た目
+Panel background opacity=背景パネルの濃さ
+Panel size=パネルの大きさ
+Magazine=弾倉
+
+## ===================================================== MODS タブのページ
+Driving=操縦
+Weapons & camera=武装・カメラ
+Combat HUD=戦闘 HUD
+Shown information=表示する内容
+Show wrecks=残骸も表示
+Also shows knocked-out vehicles (marked as enemy / friendly wreck).=撃破済みの車両（敵の残骸 / 味方の残骸）も表示します。
+Max distance (m)=最大距離（m）
+Vehicle name=車両名
+The vehicle's name next to enemy / friendly.=敵 / 味方 の横に車両名を表示します。
+Status=状態
+Operational / immobilized / knocked out.=稼働中 / 行動不能 / 撃破済み を表示します。
+Crew count=乗員数
+Crew alive out of the full crew, with a bar.=乗員の生存数（4/5 など）をバー付きで表示します。
+Crew details=乗員の詳細
+Roles of the crew killed and the number wounded.=戦死した乗員の役割と、負傷者の数を表示します。
+Engine condition, always shown.=エンジンの状態を常に表示します。
+Damaged modules=損傷したモジュール
+Main gun, breech, tracks, ammo racks, fuel tanks, transmission and turret drive, when damaged.=主砲・閉鎖機・履帯・弾薬庫・燃料タンク・変速機・砲塔旋回装置が損傷しているときに表示します。
+Whether the vehicle is on fire.=車両が燃えているかを表示します。
+Target HUD=照準情報
+
+## ===================================================== 勢力ゲージ
+Team strength bar=勢力ゲージ
+War Thunder-style bar at the top of the screen: friendly vehicles left (blue), enemies right (red). It shrinks as vehicles are knocked out. A guide only; the match does not end when it runs out.=画面上部に、味方（左・青）と敵（右・赤）の残りの車両数をゲージで表示します。撃破されると減ります（目安です。0 になっても試合は終わりません）。
+One segment per vehicle=1 両ずつ区切る
+Split the bar into one segment per vehicle (a single bar when there are more than 40).=ゲージを車両 1 両ずつの目盛りに区切ります（40 両を超えるときは 1 本のバー）。
+
+## ===================================================== ミニマップ
+Minimap=ミニマップ
+War Thunder-style map at the bottom left: terrain colours, relief shading and contour lines, with friendly and enemy positions.=画面左下に War Thunder 風の地図を表示します（地面の色・起伏の陰影・等高線と、味方・敵の位置）。
+Minimap size=ミニマップの大きさ
+Show enemies on map=敵の位置を表示
+Show enemy positions on the minimap.=ミニマップに敵の位置も表示します。
+Map grid=マス目
+Grid squares labelled A-1, B-2 ...=A-1、B-2 … のマス目を表示します。
+View direction=視線の方向
+Lines showing where your camera is looking.=カメラの向いている方向と視野を線で表示します。
+Contour lines=等高線
+Draw contour lines on the map (the map is redrawn).=地図に等高線を引きます（切り替えると地図を作り直します）。
+Generating map…=地図を作成中…
+
+## ===================================================== 被弾方向インジケーター
+Damage indicator=被弾方向
+When your vehicle is hit, a red arc around the crosshair points to where the shot came from (War Thunder / WoT style).=自車が被弾したとき、撃ってきた方向を照準の周りの赤い弧で示します（War Thunder / WoT 風）。
+Show non-penetrating hits=非貫通の被弾も表示
+Also show hits that did not penetrate (orange) and ricochets (grey).=貫通しなかった被弾（橙）と跳弾（灰）も表示します。
+Damage indicator duration (s)=被弾方向の表示時間（秒）
+Damage indicator radius (px)=被弾方向の表示半径（px）
+
+## ===================================================== 修理
+Repair=修理
+AI repairs=AI も修理する
+AI vehicles also repair themselves when damaged.=AI の車両も損傷したら自分で修理します。
+Show repair hint=修理の案内を表示
+When there is damage to repair, show the key and repair time at the bottom of the screen.=修理できる損傷があるとき、画面下にキーと修理時間を表示します。
+Repair time, crew of 4 (s)=修理時間（乗員 4 人、秒）
+Repairing=修理中
+Repair complete=修理完了
+No crew to repair=乗員がいないため修理できません
+Hold [KEY] to repair ({0} s)=[KEY] 長押しで修理（{0} 秒）
+Starting repair=修理を開始
+Cancelling repair=修理を中止
+Hold [KEY] to cancel=[KEY] 長押しで中止
+
+## ===================================================== AI
+AI improvements=AI の改善
+Makes AI tanks behave less foolishly: human-like aim and reaction, turret watching threats, hearing your shots, reacting to hits and safer driving. Off = the game's own AI.=AI の戦車の間抜けな動きを直します（人間らしい照準と反応、砲塔で脅威を見張る、プレイヤーの発砲が聞こえる、撃たれたら振り向く、安全な操縦）。オフにするとゲームの AI のままです。
+AI difficulty=AI の強さ
+Reaction time, aim error and how fast the AI corrects its aim.=反応の速さ、照準の誤差、撃つたびの修正の速さが変わります。
+Recruit=新兵
+Regular=標準
+Veteran=熟練
+Ace=エース
+AI behaviour=AI の振る舞い
+Human-like aim=人間らしい照準
+Aim error grows with distance and when moving, and is corrected a little with each shot. Adds reaction time.=遠いほど・動いているほど外れやすく、撃つたびに少しずつ修正します。反応にも時間がかかります。
+Turret watches threats=砲塔で脅威を見張る
+With no target, the turret points where the last shot came from, where an enemy was last seen, or toward the enemy side.=目標がいないとき、砲塔を撃たれた方向・最後に敵がいた方向・敵陣の方向へ向けておきます。
+AI hears your shots=発砲音を AI が聞く
+Your gunfire makes noise the AI turns toward (the game only does this for AI shots).=プレイヤーの発砲も音になり、AI がその方向を見ます（ゲームでは AI の発砲だけが音になります）。
+React to hits=撃たれたら振り向く
+When hit, the AI looks toward where the shot came from.=撃たれると、撃ってきた方向を見ます。
+Safe driving=安全な操縦
+No long reversing (turns in place instead), re-plans after being pushed, backs off and retries when stuck.=長いバックをせずその場で向きを変え、押されたら経路を立て直し、詰まったら下がってやり直します。
+AI log=AI のログ
+Writes AI hit rates by distance and shot number, and driving recoveries, to the log (for tuning).=AI の命中率（距離別・何発目か）と操縦の立て直しをログに出します（調整用）。
+$V abandoned=$V 放棄
+Abandon flipped or stuck vehicles=転覆・詰まった車両を放棄
+The crew of an AI vehicle that has flipped over or is stuck for good bails out (counts as knocked out).=転覆した、または詰まって動けなくなった AI の車両は、乗員が車両を放棄します（撃破扱い）。
+Abandon after flipped (s)=転覆から放棄まで（秒）
+Abandon after stuck (s)=詰まりから放棄まで（秒）
