@@ -1,0 +1,382 @@
+# Sprocket 日本語化 — 部品名・部品の説明・シナリオ（StreamingAssets/Localization/en-UK の内容）
+# 実在車両名・兵器名は原則そのまま（カタカナにしない）。
+
+## ===================================================== シナリオ
+Ambush=待ち伏せ
+Attempt to survive an attack from all sides in the alps.=アルプスで四方からの攻撃を生き延びよ。
+Immobilize all enemies=すべての敵を行動不能にせよ
+Reach the escape point=脱出地点に到達せよ
+Lose all vehicles=全車両を失う
+Interwar=戦間期
+Defence=防衛
+Hold back a wave of advancing tanks.=押し寄せる戦車の波を食い止めよ。
+Hold the line=戦線を維持せよ
+No vehicles remaining=残存車両なし
+Latewar=大戦後期
+Dunes=砂丘
+Ambush an enemy superheavy escort column in a hilly sandscape.=起伏のある砂漠で、敵の超重戦車護衛隊列を待ち伏せせよ。
+Immobilize 75% of the column=隊列の 75% を行動不能にせよ
+Fields=平原
+Spearhead an enemy front in a long range battle.=長距離戦で敵の前線に先陣を切って突入せよ。
+Push through the front=前線を突破せよ
+Midwar=大戦中期
+No Tank's Land=無人地帯
+Break the stalemate by crossing the hazardous, battle-scarred terrain while under enemy fire.=敵の砲火の中、戦禍で荒れ果てた危険な地形を越えて膠着を打破せよ。
+Cross no man's land=無人地帯を越えよ
+WWI=第一次世界大戦
+Railway=鉄道
+Engage a mixed enemy force on a battlefield bisected by a railway line.=線路で二分された戦場で、混成の敵部隊と交戦せよ。
+Earlywar=大戦初期
+Silent Border=静かな国境
+Cross a fortified border under the cover of night.=夜陰に乗じて要塞化された国境を越えよ。
+Cross the border with 3 vehicles=3 両で国境を越えよ
+Taiga=タイガ
+Move solo through a snowy forest, scattered with well-concealed AT guns.=巧妙に隠された対戦車砲が点在する雪の森を単独で進め。
+Cross into enemy territory=敵地へ侵入せよ
+Become immobilized=行動不能になる
+The Crossroad=十字路
+Capture the crossroad.=十字路を占領せよ。
+Remove the threat=脅威を排除せよ
+
+## ===================================================== 部品（一般名）
+Cannon=主砲
+Mount this on mantlets and turrets to allow you to aim it.=防盾や砲塔に取り付けると照準できるようになります。
+Cannon Rotation Area=主砲の回転範囲
+Ammo Rack=弾薬庫
+Mark the location of an ammo rack inside the vehicle. Use the resize tool to adjust the number of shells.=車内の弾薬庫の位置を指定します。サイズ変更ツールで砲弾の数を調整できます。
+Combustion Engine=内燃機関
+Clutch-Braking Powertrain=クラッチ・ブレーキ式パワートレイン
+Twin-Transmission Powertrain=ツイン・トランスミッション式パワートレイン
+Crew Seat=乗員席
+Cube Structure=立方体構造
+A placeable plate structure which can be deformed.=変形できる配置用の装甲板構造。
+Gunner Sight=砲手用照準器
+A scope used by the gunner for aiming the cannon.=砲手が主砲の照準に使う照準器。
+Driver Viewport=操縦手用視察口
+Allows the driver to see where they're going.=操縦手が進行方向を見られるようにします。
+Adjustable Viewport=可動式視察口
+Allows the crew to see out of the vehicle. This one can be pivoted for a greater range of vision.=乗員が車外を見られるようにします。これは向きを変えてより広い範囲を見られます。
+Plug Driver Port=プラグ式操縦手ポート
+A durable driver port which can be opened out of combat to increase visibility.=頑丈な操縦手用ポート。戦闘外では開けて視界を広げられます。
+Driver=操縦手
+Sitting=着座
+Sitting Forward=前かがみ着座
+Standing=立ち
+None=なし
+Remove the current muzzle brake.\nRemoves extra mass and visibility loss caused by muzzle brakes (Not in-game currently).=現在の砲口制退器を外します。\n砲口制退器による重量増と視界の悪化がなくなります（現在ゲーム内では未実装）。
+
+## ===================================================== 砲口制退器
+The muzzle brake used on many British 17pdr guns.=多くのイギリス製 17ポンド砲に使われた砲口制退器。
+The muzzle brake used on the British Alecto tank destroyer.=イギリスの駆逐戦車 Alecto に使われた砲口制退器。
+Used on the M41 Walker Bulldog.=M41 Walker Bulldog に使われたもの。
+The muzzle brake used on the Soviet IS-2.=ソ連の IS-2 に使われた砲口制退器。
+Holey=多孔式
+Used on the ISU-152.=ISU-152 に使われたもの。
+A short generic muzzle brake.=汎用の短い砲口制退器。
+Short=短型
+Used on the Pz VI Tiger.=Pz VI Tiger に使われたもの。
+A muzzle brake constructed with welded sheets of metal.=金属板を溶接して作った砲口制退器。
+Welded=溶接式
+End Cap=エンドキャップ
+An extention on the end of the barrel used for balancing the cannon's centre of mass.=主砲の重心を調整するために砲身の先端に付ける延長部品。
+
+## ===================================================== 防盾
+An empty mantlet. Attach parts to this to create your own mantlet.=空の防盾。部品を取り付けて独自の防盾を作れます。
+Blank=空
+The mantlet used on the Japanese Type 1 Chi-He.=日本の一式中戦車チヘに使われた防盾。
+Chi He Mantlet=チヘ 防盾
+Circular=円形
+The mantlet used on the US M-10 Wolverine.=アメリカの M-10 Wolverine に使われた防盾。
+M10 Mantlet=M10 防盾
+The mantlet used on the M4 Sherman.=M4 Sherman に使われた防盾。
+The mantlet used on the UK Matilda II.=イギリスの Matilda II に使われた防盾。
+The mantlet used on the German Panzer V Panther.=ドイツの Panzer V Panther に使われた防盾。
+The mantlet used on the German Panzer II.=ドイツの Panzer II に使われた防盾。
+Pz II Mantlet=Pz II 防盾
+The mantlet used on the German Pz38t.=ドイツの Pz38t に使われた防盾。
+The mantlet used on the Soviet SU-85.=ソ連の SU-85 に使われた防盾。
+The mantlet used on the later M4 Sherman variants.=後期型 M4 Sherman に使われた防盾。
+An ahistorical mantlet.=史実にない防盾。
+Squared=角型
+The mantlet used on the Soviet T34-76.=ソ連の T34-76 に使われた防盾。
+T34/76 Mantlet=T34/76 防盾
+
+## ===================================================== 機関銃
+A 50 Cal on a mount. Typically mounted in front of the commander's cupola or on the rear of the turret.=架台に載せた 50 口径機関銃。主に車長キューポラの前や砲塔後部に装備されました。
+Browning Port=Browning 銃眼
+A 12.7mm heavy Soviet machine gun on an anti-aircraft mount.=対空架台に載せたソ連製 12.7mm 重機関銃。
+MG-34 Port=MG-34 銃眼
+Crusader MG Turret=Crusader 機銃塔
+
+## ===================================================== 転輪・起動輪・懸架装置
+A generic 6-hole wheel.=汎用の 6 穴転輪。
+6-Hole Wheel=6 穴転輪
+Used on various French late WWII prototype tanks.=第二次大戦末期のフランスの各種試作戦車に使われたもの。
+Air Tyre Wheel=空気タイヤ転輪
+The roadwheel used on the Italian Celere Sahariano.=イタリアの Celere Sahariano に使われた転輪。
+ChiHe Roadwheel=チヘ 転輪
+Covenanter Roadwheel=Covenanter 転輪
+Italian Post-war Roadwheel=イタリア戦後型転輪
+Panther Roadwheel=Panther 転輪
+A generic spoked wheel.=汎用のスポーク転輪。
+Spoked Wheel=スポーク転輪
+SpokedWheel=スポーク転輪
+T34 Roadwheel=T34 転輪
+Post-war roadwheels from the Soviet T-55.=ソ連 T-55 の戦後型転輪。
+Wheel #1=転輪 #1
+Wheel #2=転輪 #2
+Wheel #3=転輪 #3
+Comet Sprocket=Comet 起動輪
+The sprocket wheel used on the M4 Sherman.=M4 Sherman に使われた起動輪。
+An internal sprocket configuration with its teeth inside the drum. These teeth grip the track belt guide-horns.=歯がドラムの内側にある内歯式の起動輪。歯が履帯のガイドホーンをつかみます。
+Internal=内歯式
+StrvM42Sprocket=Strv M42 起動輪
+Tiger Sprocket=Tiger 起動輪
+The wheel mounts that held (and powered) the sprocket wheels on England's Churchill tanks.=イギリスの Churchill 戦車で起動輪を支え（駆動し）ていたマウント。
+Churchill Mount=Churchill マウント
+Fixed Mount=固定マウント
+Rounded Wheel Mount=丸型転輪マウント
+Sherman Idler Arm=Sherman 誘導輪アーム
+Horizontal volute spring suspension. Most famously used on later US M4 Sherman models.\n<color\=green>+No space use</color>\n<color\=red>-Heavy=水平渦巻きばね式サスペンション（HVSS）。後期型 M4 Sherman で有名です。\n<color\=green>+車内容積を使わない</color>\n<color\=red>-重い
+Vertical volute spring suspension. Most famously used on early US M4 Sherman models.\n<color\=green>+No space use</color>\n<color\=red>-Heavy=垂直渦巻きばね式サスペンション（VVSS）。初期型 M4 Sherman で有名です。\n<color\=green>+車内容積を使わない</color>\n<color\=red>-重い
+The leaf spring suspension used on the Italian Carro Armato.\n<color\=green>+No space use</color>\n<color\=red>-Heavy=イタリアの Carro Armato に使われた板ばね式サスペンション。\n<color\=green>+車内容積を使わない</color>\n<color\=red>-重い
+Suspension which absorbs impacts by twisting long metal rods.\n<color\=green>+Light</color>\n<color\=red>-Uses internal space=長い金属棒のねじれで衝撃を吸収するサスペンション。\n<color\=green>+軽い</color>\n<color\=red>-車内容積を使う
+Torsion Bar Suspension=トーションバー・サスペンション
+
+## ===================================================== 履帯
+The tracks used on the French AMX 13 light tank.=フランスの AMX 13 軽戦車に使われた履帯。
+The tracks used on the French interwar Char B1 heavy tank.=フランスの戦間期の重戦車 Char B1 に使われた履帯。
+The track belt segments used on the Soviet interwar BT series of tanks. It's designed for an internal sprocket-wheel configuration.=ソ連の戦間期の BT 戦車シリーズに使われた履板。内歯式の起動輪向けに設計されています。
+BT Series=BT シリーズ
+Mark IV Track Segment=Mark IV 履板
+Reinforced track belts for heavy tanks.=重戦車用の強化履帯。
+Reinforced=強化型
+Used by several US vehicles. Features guide-horns on either edge, instead of in the centre. This was due to the wheel positions created by the VVS suspension used on early vehicles.=複数のアメリカ車両に使われた履板。ガイドホーンが中央ではなく両端にあります。これは初期の車両に使われた VVS サスペンションの転輪配置によるものです。
+Sherman Track Segment=Sherman 履板
+Late Soviet=ソ連後期型
+The tracks used on the US M4 Sherman.=アメリカの M4 Sherman に使われた履帯。
+Triple Pad=トリプルパッド
+Extra track segments to replace broken or damaged segments.\n<color\=green>+Armour</color>\n<color\=red>+Mass</color>=壊れたり損傷した履板と交換するための予備履板。\n<color\=green>+装甲</color>\n<color\=red>+重量</color>
+Spare Tracks=予備履板
+Extra wheels to replace broken or damaged ones.\n<color\=green>+Armour</color>\n<color\=red>+Mass</color>=壊れたり損傷した転輪と交換するための予備転輪。\n<color\=green>+装甲</color>\n<color\=red>+重量</color>
+Spare Wheel=予備転輪
+
+# 履帯パネル・フェンダー
+Half-Height=半分の高さ
+Half-Width=半分の幅
+A panel with a hole to allow mud picked up by the track belt to escape.=履帯が巻き上げた泥を逃がす穴の開いたパネル。
+Mud Chute=泥落とし
+Mid-Section=中央部
+Sloped=傾斜型
+Small Sloped=小型傾斜
+Tapered=先細り型
+Churchill VII Fender Frontsection=Churchill VII フェンダー前部
+The front fender used on the British midwar A27 Cromwell.=イギリスの大戦中期の A27 Cromwell に使われた前部フェンダー。
+Cromwell-Front=Cromwell 前部
+The fender used on the British midwar A27 Cromwell.=イギリスの大戦中期の A27 Cromwell に使われたフェンダー。
+The rear fender used on the British midwar A27 Cromwell.=イギリスの大戦中期の A27 Cromwell に使われた後部フェンダー。
+Cromwell-Rear=Cromwell 後部
+Italian-Front=イタリア型前部
+Italian Fender=イタリア型フェンダー
+Sloped Fender Midsection=傾斜フェンダー中央部
+Flat Fender Front=平面フェンダー前部
+Flat Fender Midsection=平面フェンダー中央部
+
+## ===================================================== キューポラ・ハッチ・視察口
+A generic 8-slot commander cupola.=汎用の 8 窓式車長キューポラ。
+8-Slot Cupola=8 窓式キューポラ
+German Cupola=ドイツ式キューポラ
+Pz38t Cupola=Pz38t キューポラ
+Sherman Cupola=Sherman キューポラ
+The cupola used on early variants of the US M4 Sherman.=アメリカの初期型 M4 Sherman に使われたキューポラ。
+US Split Hatch Cupola=米国式分割ハッチキューポラ
+A Soviet inspired hatch in a circular form. Since sharp edges can be dangerous.=ソ連風の円形ハッチ。角は危ないので。
+Circular Hatch=円形ハッチ
+A hatch which opens in two directions. Requires less room for the doors to open than a single-hatch counterpart.=両開きのハッチ。片開きより開閉に必要な空間が少なく済みます。
+Double Door Hatch=両開きハッチ
+A hatch with a built-in periscope.=ペリスコープ付きのハッチ。
+Periscope Hatch=ペリスコープ付きハッチ
+Rounded Split Hatch=丸型分割ハッチ
+A hatch commonly found on the upper frontal glacis of a Soviet T34.=ソ連の T34 の車体前面上部によく見られるハッチ。
+T34 Hatch=T34 ハッチ
+A hatch that utilizes a torsion bar to balance the weight of the heavy door.=トーションバーで重い扉の重さを釣り合わせるハッチ。
+Torsion Bar Hatch=トーションバー付きハッチ
+A large hatch designed for engine access.=エンジン整備用の大型ハッチ。
+Rounded Engine Door=丸型エンジン扉
+A door to allow the loader to eject spent shell casings, to stop them rattling around on the floor. This one is from a Sherman.=装填手が空薬莢を外に捨てるための扉。床に転がらないようにします。これは Sherman のもの。
+Loader Port=装填手用ハッチ
+Allows the driver to see where they're going. This one was mounted on the Japanese Type 1 Chi-He.=操縦手が進行方向を見られるようにします。これは日本の一式中戦車チヘに装備されたもの。
+Chi-He Driver Viewport=チヘ 操縦手用視察口
+
+## ===================================================== エンジン関連
+An engine vent which outputs 90 degrees away from the surface. This one was mounted on the Soviet earlywar KV-3.=表面から 90 度方向に排気するエンジン通気口。これはソ連の大戦初期の KV-3 に装備されたもの。
+KV-3 Engine Vent=KV-3 エンジン通気口
+Circular Vent=円形通気口
+The engine vent used on the Soviet latewar IS-6.=ソ連の大戦後期の IS-6 に使われたエンジン通気口。
+IS-6 Radial Engine Vent=IS-6 放射状エンジン通気口
+T10 Vent=T10 通気口
+Tiger I Engine Vent=Tiger I エンジン通気口
+The latewar Soviet IS-4's engine vent assembly.=ソ連の大戦後期の IS-4 のエンジン通気口一式。
+IS-4 Engine Vent Assembly=IS-4 エンジン通気口一式
+A rear facing exhaust vent.=後ろ向きの排気口。
+A side facing exhaust vent.=横向きの排気口。
+The exhaust found on the rear of a Soviet T34.=ソ連の T34 の後部にある排気管。
+A muffled exhaust found on early Pz V Panther variants.=初期型 Pz V Panther のマフラー付き排気管。
+Early Pz V Panther=初期型 Pz V Panther
+A non-historical exhaust pipe. Similar to those found on some German big-cats.=史実にない排気管。ドイツの大型猫科戦車のものに似ています。
+Tall=背の高い型
+The exhaust found on the back of a Pz VI Tiger.=Pz VI Tiger の後部にある排気管。
+The engine air-filter used on the German Panzer VI Tiger I.=ドイツの Panzer VI Tiger I に使われたエンジン用エアフィルター。
+Feifel Filter=Feifel フィルター
+An access port to refill engine-coolant.=エンジン冷却水を補充するための口。
+Radiator Cap=ラジエーターキャップ
+Improves airflow throughout the crew compartment and removes dangerous burnt-propellant gasses.=乗員室全体の換気を良くし、危険な発射ガスを排出します。
+Sherman Ventilator=Sherman ベンチレーター
+
+## ===================================================== 燃料
+An externally mounted fuel tank. \n<b>Effects: Provides fuel without taking up internal space. This fuel is removed if it is shot off the vehicle.</b>=車外に取り付ける燃料タンク。\n<b>効果: 車内容積を使わずに燃料を積めます。撃たれて脱落するとこの燃料は失われます。</b>
+Box=箱型
+An access point for refilling a fuel tank.=燃料タンクの給油口。
+Filler Cap=給油キャップ
+An access point to refill internal fuel tanks.=車内の燃料タンクの給油口。
+Fuel Port=給油口
+A hand-held liquid container, which carried everything from diesel to wine.=手で運べる液体容器。軽油からワインまで何でも運びました。
+US Jerrycan=米国式ジェリカン
+
+## ===================================================== 搭載品・装備
+Rods which can be assembled into a single longer rod. Used for cleaning dirt and propellant residue out of cannon barrels.=つなげて 1 本の長い棒にできる棒。砲身内の汚れや装薬の燃えかすを掃除するのに使います。
+Barrel Cleaning Rods=砲身清掃棒
+Rolls for the crew to sleep on.=乗員の寝具。
+Bed Rolls=寝袋
+A stowage box able to be quickly bolted and unbolted to the vehicle.=車両にすばやくボルト留め・取り外しできる収納箱。
+Bolt-on Stowage Box=ボルト留め収納箱
+Built-in stowage for storing things like sandwiches.=サンドイッチなどをしまう作り付けの収納。
+KV-1 Stowage Box=KV-1 収納箱
+Extra stowage for the crew. Often placed on the rear of the turret.=乗員用の追加収納。砲塔後部によく付けられました。
+Long Closed Bustle Rack=長い密閉式バスルラック
+Net Bustle Rack=ネット式バスルラック
+Short Closed Bustle Rack=短い密閉式バスルラック
+Sloped Stowage Box=傾斜型収納箱
+Hooks to attach crew equipment/spares to.=乗員の装備や予備品を掛けるフック。
+Square Stowage Hooks=角型収納フック
+A wooden generic stowage box.=汎用の木製収納箱。
+Wooden Crate=木箱
+Fire Extinguisher & Cutters=消火器とカッター
+Shovel & Axe=シャベルと斧
+A durable sheet used for protection from the elements.=風雨から守るための丈夫なシート。
+Tarp=防水シート
+Wire Spool=ワイヤーリール
+Wooden Block=木製ブロック
+Used to assist movement across marshy/muddy ground and prevent the vehicle from getting stuck.=湿地やぬかるみでの移動を助け、車両が動けなくなるのを防ぎます。
+Log=丸太
+Improvised armour crew sometimes added.=乗員がときどき追加した即席の装甲。
+Sandbag 1=土のう 1
+Sandbag 2=土のう 2
+Sandbag 3=土のう 3
+A bar to help the crew hold on to or climb the vehicle.=乗員がつかまったり車両に登ったりするための手すり。
+Handle Bar=手すり
+A section of a ladder, to assist crew in climbing the vehicle.=乗員が車両に登るのを助けるはしごの一部。
+Ladder Segment=はしご
+A lock to secure the cannon out of combat, to prevent accidental movement and wear to its aiming mechanisms.=戦闘外で主砲を固定し、不意の動きや照準機構の摩耗を防ぐロック。
+Gun Travel Lock=トラベルロック
+Launches smoke grenades to lay a wall of smoke. This one's off of the German Panzer VI Tiger I.=発煙弾を発射して煙幕を張ります。これはドイツの Panzer VI Tiger I のもの。
+Tri-smoke Launcher=3 連発煙弾発射機
+A structure to extend the length of the vehicle, which can assist in trench-crossing. Typically attached to the rear.=車両の全長を延ばして塹壕の超越を助ける構造物。主に後部に付けます。
+Trench Crossing Tail=超壕用尾体
+Used to stop water riding up the upper frontal glacis when entering a body of water.=水に入るときに水が車体前面上部をはい上がるのを防ぎます。
+Wooden Trim Vane=木製波切り板
+
+## ===================================================== 灯火・アンテナ・牽引
+A German headlight which allows the driver to see at night.=操縦手が夜間に前を見られるようにするドイツ式前照灯。
+German Headlight=ドイツ式前照灯
+A generic light which allows the driver to see at night.=操縦手が夜間に前を見られるようにする汎用の前照灯。
+Headlight=前照灯
+A light which allows the driver to see at night. The one used on the M4 Sherman.=操縦手が夜間に前を見られるようにする前照灯。M4 Sherman に使われたもの。
+US Headlight=米国式前照灯
+Used for communication to allies behind the vehicle.=後方の味方への合図に使います。
+Tail Light=尾灯
+Usually mounted on the back of the turret. Doubles as a handrail.=通常は砲塔の後部に取り付けます。手すりも兼ねます。
+Rail Antenna=手すり型アンテナ
+A flexible wire antenna which can bend out of the way of the turret or cannon.=砲塔や主砲に当たってもしなって逃げるワイヤーアンテナ。
+Straight Antenna=直線アンテナ
+A connection point for cables to tow the vehicle if it ever becomes stuck. This one's bolted on.=動けなくなったときに牽引ケーブルをつなぐ箇所。これはボルト留め。
+Bolted Tow Loop=ボルト留め牽引フック
+A connection point for cables to tow the vehicle if it ever becomes stuck. This one's welded on.=動けなくなったときに牽引ケーブルをつなぐ箇所。これは溶接。
+Welded Tow Loop=溶接牽引フック
+A connection point for cables to tow the vehicle if it ever becomes stuck.=動けなくなったときに牽引ケーブルをつなぐ箇所。
+Italian Tow Loop=イタリア式牽引フック
+Used for towing other vehicles.=他の車両の牽引に使います。
+Hanging Towing Cable=吊り下げ牽引ケーブル
+Looped Towing Cable=輪にした牽引ケーブル
+Straight Towing Cable=まっすぐな牽引ケーブル
+Used by cranes during vehicle assembly to move the vehicle around before it can move itself. This one is from a Sherman.=組み立て中、自走できるようになるまでクレーンで車両を動かすのに使います。これは Sherman のもの。
+Round Crane Attachment Point=丸型吊り上げフック
+Used by cranes during vehicle assembly to move the vehicle around before it can move itself.=組み立て中、自走できるようになるまでクレーンで車両を動かすのに使います。
+Square Crane Attachment Point=角型吊り上げフック
+Triangular Crane Attachment Point=三角型吊り上げフック
+Triangular Crane Attachment Point (Round Hole)=三角型吊り上げフック（丸穴）
+
+## ===================================================== 装甲板・ヒンジ・リベット
+Applique Plate=増加装甲板
+Applique Plate (Clipped)=増加装甲板（角落とし）
+Riveted Applique Plate=リベット留め増加装甲板
+Riveted Applique Plate (Clipped)=リベット留め増加装甲板（角落とし）
+Normally placed around turret rings to add additional protection.=通常は砲塔リングの周りに付けて防御を強化します。
+Rounded Bullet Plate=丸型跳弾板
+A small decorative hinge-joint that's bolted on.=ボルト留めの小さな装飾用ヒンジ。
+Bolted Hinge=ボルト留めヒンジ
+Bolted Hinge (Base)=ボルト留めヒンジ（基部）
+A small decorative hinge-joint that's riveted on.=リベット留めの小さな装飾用ヒンジ。
+Small Hinge=小型ヒンジ
+Small Hinge (Base)=小型ヒンジ（基部）
+A small decorative hinge-joint that's welded on.=溶接された小さな装飾用ヒンジ。
+Welded Hinge=溶接ヒンジ
+Welded Hinge (Base)=溶接ヒンジ（基部）
+Used for certain construction methods commonly used on tanks during WWI and the interwar period.=第一次大戦から戦間期の戦車によく使われた工法に用いられます。
+
+## ===================================================== 塗装パターン
+Autumn Marsh=秋の湿地
+Desert Canyon=砂漠の峡谷
+Desert Caustic=砂漠の光紋
+Flat=単色
+Forest Abstract=森林・抽象
+Forest Block=森林・ブロック
+Forest Canyon=森林の峡谷
+ForestCanyonVariation=森林の峡谷（別案）
+Forest Caustic=森林の光紋
+Forest Cobble=森林・石畳
+Forest Marsh=森林の湿地
+Forest Patch=森林・パッチ
+Forest Tiger=森林・タイガー
+Forest Zig-Zag=森林・ジグザグ
+French Desert=フランス砂漠
+Jungle=ジャングル
+Snow Canyon=雪の峡谷
+Snow Caustic=雪の光紋
+Snow Marsh=雪の湿地
+Urban Canyon=市街の峡谷
+
+## ===================================================== デカール・国旗
+Balkenkreuz=バルケンクロイツ
+A minimalistic version of the German "Balkenkreuz". Introduced near the end of WWI.=ドイツの「バルケンクロイツ」の簡略版。第一次大戦末期に導入されました。
+Minimal Balkenkreuz=簡略型バルケンクロイツ
+British Emblem=イギリスの国籍マーク
+Chinese Star=中国の星
+France=フランス
+Sometimes placed on tanks to let the French airforce know they're allies.=フランス空軍に味方であることを知らせるため、戦車に付けられることがありました。
+French Airforce Roundel=フランス空軍のラウンデル
+Placed on many ally vehicles during the invasion of Normandy.=ノルマンディー上陸作戦で多くの連合軍車両に描かれました。
+Invasion Stripes=インベイジョン・ストライプ
+Used from 1861-1946=1861〜1946 年に使用
+Italy=イタリア
+Japan=日本
+Sometimes placed on Polish tanks to tell let the Polish airforce know they're allies.=ポーランド空軍に味方であることを知らせるため、ポーランドの戦車に付けられることがありました。
+Polish Airforce Emblem=ポーランド空軍のエンブレム
+Poland=ポーランド
+Red Star A=赤い星 A
+Red Star B=赤い星 B
+Romania=ルーマニア
+Sprocket=Sprocket
+Sweden=スウェーデン
+Swiss Emblem=スイスのエンブレム
+US Star=アメリカの星

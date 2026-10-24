@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <!-- Sprocketのインストール先。別の場所にある場合はここを書き換える -->
+    <GameDir Condition="'$(GameDir)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</GameDir>
+    <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
+    <BepInExInterop>$(GameDir)\BepInEx\interop</BepInExInterop>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,6 @@
+# この言語で使うフォントファイル。上から順に探し、最初に見つかったものを使う。
+# ファイル名だけなら Windows のフォントフォルダ（ユーザー用も含む）とこのフォルダを探す。絶対パスも書ける。
+BIZ-UDGothicR.ttc
+YuGothM.ttc
+meiryo.ttc
+msgothic.ttc
