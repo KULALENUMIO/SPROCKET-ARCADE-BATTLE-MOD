@@ -13,6 +13,7 @@ public class HudStyleConfig
 {
     public readonly ConfigEntry<float> PanelOpacity;
     public readonly ConfigEntry<float> Scale;
+    public readonly ConfigEntry<bool> DeathEffect;
 
     public HudStyleConfig(ConfigFile cfg)
     {
@@ -21,6 +22,7 @@ public class HudStyleConfig
             new ConfigDescription("文字の後ろに敷く黒いパネルの濃さ（0 = なし）", new AcceptableValueRange<float>(0f, 1f)));
         Scale = cfg.Bind(s, "Scale", 1f,
             new ConfigDescription("命中結果・照準した車両の情報・機関砲・キルログのパネル全体の大きさ", new AcceptableValueRange<float>(0.6f, 1.6f)));
+        DeathEffect = cfg.Bind(s, "DeathEffect", true, "自車が撃破されたら、画面の周りを赤く暗くし、色を落として周りをにじませる（War Thunder 風）");
     }
 }
 

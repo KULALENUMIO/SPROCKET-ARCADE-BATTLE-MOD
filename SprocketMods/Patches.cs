@@ -22,6 +22,19 @@ internal static class Patches
             prefix: nameof(PowertrainFixedUpdatePrefix));
         TryPatch(harmony, typeof(Sprocket.Vehicles.CrewSystems.Driver), nameof(Sprocket.Vehicles.CrewSystems.Driver.ExecutePerform),
             prefix: nameof(DriverPerformPrefix));
+        TryPatch(harmony, typeof(Sprocket.EffectRegister), nameof(Sprocket.EffectRegister.Release), prefix: nameof(EffectReleasePrefix));
+        TryPatch(harmony, typeof(Sprocket.Vehicles.VehicleRendererAtlaser), nameof(Sprocket.Vehicles.VehicleRendererAtlaser.Release),
+            prefix: nameof(AtlaserReleasePrefix));
+        TryPatch(harmony, typeof(Sprocket.VehicleControl.VehicleControlPlayerState), nameof(Sprocket.VehicleControl.VehicleControlPlayerState.InternalUpdate),
+            prefix: nameof(VehicleControlUpdatePrefix));
+        TryPatch(harmony, typeof(Sprocket.VehicleControl.VehicleControlPlayerState), nameof(Sprocket.VehicleControl.VehicleControlPlayerState.InternalLateUpdate),
+            prefix: nameof(VehicleControlUpdatePrefix));
+        TryPatch(harmony, typeof(Sprocket.Vehicles.PlateStructures.Design.PlateStructureEditor),
+            nameof(Sprocket.Vehicles.PlateStructures.Design.PlateStructureEditor.OnGUI), postfix: nameof(PlateStructureOnGuiPostfix));
+        TryPatch(harmony, typeof(Sprocket.ArtificialIntelligence.CommanderAI), nameof(Sprocket.ArtificialIntelligence.CommanderAI.CollectCombatInfo),
+            postfix: nameof(CollectCombatInfoPostfix));
+        TryPatch(harmony, typeof(Sprocket.ArtificialIntelligence.PrioritizedTargetBuffer), nameof(Sprocket.ArtificialIntelligence.PrioritizedTargetBuffer.Update),
+            postfix: nameof(PrioritizeTargetsPostfix));
         TryPatch(harmony, typeof(Sprocket.ArtificialIntelligence.FindAndAimAtTargetGunLayerTask),
             nameof(Sprocket.ArtificialIntelligence.FindAndAimAtTargetGunLayerTask.Update), postfix: nameof(FindAndAimPostfix));
         TryPatch(harmony, typeof(Sprocket.RotationAxisPhysicsRegister), nameof(Sprocket.RotationAxisPhysicsRegister.Update),
@@ -48,6 +61,103 @@ internal static class Patches
         TryPatch(harmony, typeof(Sprocket.Vehicles.Fires.MuzzleFlashEffect), nameof(Sprocket.Vehicles.Fires.MuzzleFlashEffect.Setup),
             prefix: nameof(MuzzleSetupPrefix), postfix: nameof(MuzzleSetupPostfix));
         TryPatch(harmony, typeof(VehicleController), nameof(VehicleController.OnWeaponFire), prefix: nameof(RecoilPrefix));
+
+        // 砲弾の種類（Ammo/AmmoSystem.cs）: すべての貫通計算の入口で、自分の徹甲榴弾・榴弾の貫通力を下げ、抜けたら炸裂させる
+        TryPatch(harmony, typeof(Sprocket.DamageModelling.CompoundStructure), nameof(Sprocket.DamageModelling.CompoundStructure.Penetrate),
+            prefix: nameof(PenetratePrefix), postfix: nameof(PenetratePostfix));
+
+        // 履帯の帯の当たり判定（Tracks/TrackDamage.cs）と、撃破だけで決める勝敗（KillFeed/DefeatRule.cs）
+        TryPatch(harmony, typeof(Sprocket.Vehicles.Tracks.TrackAssembly), nameof(Sprocket.Vehicles.Tracks.TrackAssembly.BuildDamageModelColliders),
+            postfix: nameof(TrackCollidersPostfix));
+        TryPatch(harmony, typeof(Sprocket.MissionFramework.ImmobilizeObjective), nameof(Sprocket.MissionFramework.ImmobilizeObjective.UpdateObjective),
+            postfix: nameof(ImmobilizeObjectivePostfix));
+
+        // ヒットカメラ: 貫通計算の結果を受け取る
+        TryPatch(harmony, typeof(Sprocket.Vehicles.Vehicle), nameof(Sprocket.Vehicles.Vehicle.OnDamageModelSimulationRan),
+            postfix: nameof(SimulationRanPostfix));
+    }
+
+    private static void PenetratePrefix(ref Sprocket.DamageModelling.PenetratorInfo penetrator, out int __state)
+    {
+        __state = -1;
+        try
+        {
+            __state = SprocketMods.Ammo.AmmoSystem.BeforePenetrate(ref penetrator);
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogError($"Ammo (before penetration) failed: {e}");
+        }
+    }
+
+    private static void PenetratePostfix(Sprocket.DamageModelling.CompoundStructure __instance, Sprocket.DamageModelling.PenetratorInfo penetrator,
+        Sprocket.DamageModelling.IPenetrationSimulation __result, int __state)
+    {
+        if (__state < 0)
+            return;
+        try
+        {
+            SprocketMods.Ammo.AmmoSystem.AfterPenetrate(__instance, penetrator, __result, __state);
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogError($"Ammo (after penetration) failed: {e}");
+        }
+    }
+
+    private static void TrackCollidersPostfix(Sprocket.Vehicles.Tracks.TrackAssembly __instance,
+        Sprocket.Vehicles.Colliders.IVehicleComponentDamageModelBuilder builder)
+    {
+        Guard(() => SprocketMods.Tracks.TrackDamage.AfterBuildColliders(__instance, builder));
+    }
+
+    private static void ImmobilizeObjectivePostfix(Sprocket.MissionFramework.ImmobilizeObjective __instance,
+        ref Sprocket.MissionFramework.ObjectiveResult __result)
+    {
+        try
+        {
+            SprocketMods.KillFeed.DefeatRule.AfterUpdate(__instance, ref __result);
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogError($"Defeat rule failed: {e}");
+        }
+    }
+
+    private static void SimulationRanPostfix(Sprocket.Vehicles.Vehicle __instance, Sprocket.DamageModelling.PenetrationSimulationRunEvent e)
+    {
+        Guard(() => SprocketMods.HitCam.HitCamTracker.Instance?.OnSimulation(__instance, e));
+    }
+
+    /// <summary>サンドボックスの車両一覧を開いている間は、走行の操作とカメラを止めて背景を固定する（一覧の処理は止めない）。</summary>
+    /// <summary>破棄済みのエフェクトは解放しない。例外になるとメニューへ戻るシーン遷移ごと止まる。</summary>
+    private static bool EffectReleasePrefix(Sprocket.EffectRegister __instance, int index)
+    {
+        try
+        {
+            return !SprocketMods.Design.SandboxSpawner.SkipDestroyedEffect(__instance, index);
+        }
+        catch (Exception e)
+        {
+            LogAutocannonError(e);
+            return true;
+        }
+    }
+
+    private static void AtlaserReleasePrefix(Sprocket.Vehicles.VehicleRendererAtlaser __instance)
+    {
+        Guard(() => SprocketMods.Design.SandboxSpawner.ForgetDestroyedRenderers(__instance));
+    }
+
+    private static bool VehicleControlUpdatePrefix()
+    {
+        return !SprocketMods.Design.SandboxSpawner.Selecting;
+    }
+
+    /// <summary>砲塔の編集欄に円柱の項目を足す（処理は Design/CylinderTurret.cs）。</summary>
+    private static void PlateStructureOnGuiPostfix(Sprocket.Vehicles.PlateStructures.Design.PlateStructureEditor __instance, Sprocket.UI.IGUILayout layout)
+    {
+        Guard(() => SprocketMods.Design.CylinderTurret.DrawGui(__instance, layout));
     }
 
     private static void TryPatch(Harmony harmony, Type type, string method, string prefix = null, string postfix = null)
@@ -104,6 +214,18 @@ internal static class Patches
         Guard(() => SprocketMods.Ai.AiDirector.Instance?.FilterDrive(__instance));
     }
 
+    /// <summary>AI の作戦を「その場で撃ち合う」に寄せ、動く判断は MOD の戦術でする（処理は Ai/AiTactics.cs）。</summary>
+    private static void CollectCombatInfoPostfix(Sprocket.ArtificialIntelligence.CommanderAI __instance, Sprocket.ArtificialIntelligence.CombatStrategy output)
+    {
+        Guard(() => SprocketMods.Ai.AiDirector.Instance?.AfterCollectCombatInfo(__instance, output));
+    }
+
+    /// <summary>AI の目標の優先順位を付け直す（処理は Ai/AiTactics.cs）。</summary>
+    private static void PrioritizeTargetsPostfix(Sprocket.ArtificialIntelligence.PrioritizedTargetBuffer __instance)
+    {
+        Guard(() => SprocketMods.Ai.AiDirector.Instance?.AfterPrioritize(__instance));
+    }
+
     /// <summary>AI の照準に自前の誤差と反応の遅れを足し、目標がいなければ砲塔を見張りの方向へ（処理は Ai/AiDirector.cs）。</summary>
     private static void FindAndAimPostfix(Sprocket.ArtificialIntelligence.FindAndAimAtTargetGunLayerTask __instance,
         ref Sprocket.ArtificialIntelligence.GunLayerTaskInfo info, ref Sprocket.ArtificialIntelligence.GunLayerInstructions output,
@@ -139,6 +261,8 @@ internal static class Patches
         var projectileId = __result.ProjectileID;
         Guard(() => SprocketMods.KillFeed.KillTracker.Instance?.OnShot(__instance, projectileId));
         Guard(() => SprocketMods.Hits.HitTracker.Instance?.OnShot(__instance, projectileId));
+        Guard(() => SprocketMods.HitCam.HitCamTracker.Instance?.OnShot(__instance, projectileId));
+        Guard(() => SprocketMods.Ammo.AmmoSystem.Instance?.OnShot(__instance, projectileId));
         Guard(() => SprocketMods.Hits.DamageIndicator.Instance?.OnShot(__instance, projectileId));
         Guard(() => SprocketMods.Ai.AiDirector.Instance?.OnShot(__instance, projectileId));
     }

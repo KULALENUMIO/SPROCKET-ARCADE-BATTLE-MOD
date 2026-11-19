@@ -13,11 +13,22 @@ using Object = UnityEngine.Object;
 
 namespace SprocketMods.KillFeed;
 
+/// <summary>キルログの置き場所。</summary>
+public enum KillFeedPosition
+{
+    /// <summary>画面右の中ほど（右上はヒットカメラ）。</summary>
+    MiddleRight,
+    TopRight,
+}
+
 /// <summary>キルログの設定（[KillFeed] セクション）。</summary>
 public class KillFeedConfig
 {
+    public readonly ConfigEntry<KillFeedPosition> Position;
+    public readonly ConfigEntry<bool> Compact;
     public readonly ConfigEntry<bool> Enabled;
     public readonly ConfigEntry<bool> ShowImmobilized;
+    public readonly ConfigEntry<bool> DestroyedOnly;
     public readonly ConfigEntry<int> MaxEntries;
     public readonly ConfigEntry<float> Duration;
     public readonly ConfigEntry<float> FontSize;
@@ -26,8 +37,13 @@ public class KillFeedConfig
     public KillFeedConfig(ConfigFile cfg)
     {
         const string s = "KillFeed";
-        Enabled = cfg.Bind(s, "Enabled", true, "画面右上に撃破のログを表示する");
+        Enabled = cfg.Bind(s, "Enabled", true, "撃破のログを表示する");
+        Position = cfg.Bind(s, "Position", KillFeedPosition.MiddleRight, "置き場所（MiddleRight = 画面右の中ほど、TopRight = 右上）");
+        Compact = cfg.Bind(s, "Compact", true, "行を詰めて小さめに表示する");
         ShowImmobilized = cfg.Bind(s, "ShowImmobilized", true, "撃破に加えて、行動不能（走行不能になったが武装は生きている）も表示する");
+        DestroyedOnly = cfg.Bind(s, "DestroyedOnly", true,
+            "撃破は、乗員が全滅した（誘爆で消えた・放棄も含む）ときだけにする。走行不能や武装の喪失は修理で直るので撃破にしない。" +
+            "対戦の勝敗（ゲームの「走行不能で倒した」）も同じ基準にする");
         MaxEntries = cfg.Bind(s, "MaxEntries", 6, new ConfigDescription("同時に表示する行数", new AcceptableValueRange<int>(1, 15)));
         Duration = cfg.Bind(s, "Duration", 8f, new ConfigDescription("1 行を表示しておく時間（秒）", new AcceptableValueRange<float>(2f, 30f)));
         FontSize = cfg.Bind(s, "FontSize", 18f, new ConfigDescription("文字の大きさ（1080p 基準）", new AcceptableValueRange<float>(10f, 36f)));
@@ -79,10 +95,12 @@ internal readonly struct KillEvent
 /// 撃破の検出と戦果の判定。
 ///
 /// このビルドのゲームには撃破イベントが無い（KillEventArgs は作られず、KillLogger / KillObjective も中身が無い）ため、自前で行う。
-///  - 撃破: 乗員が全員倒れた（VehicleCrewWorkspaceModule の全 operator が Enabled = HealthFraction &gt; 0 でない）とき。
-///    ほかに、被弾後に「走行可能（Mobile）」「武装（Armed）」を両方失ったとき、命中直後に車両ごと消えた（誘爆など）とき。
+///  - 撃破: 乗員が全員倒れた（VehicleCrewWorkspaceModule の全 operator が Enabled = HealthFraction &gt; 0 でない）とき、
+///    命中直後に車両ごと消えた（誘爆など）とき。DestroyedOnly = false なら、被弾後に「走行可能（Mobile）」「武装（Armed）」を
+///    両方失ったときも（どちらも修理で直るので、既定では撃破にしない。乗員の仕組みが無い車両は常にこれも使う）。
 ///    ※ 撃破された車両も Armed フラグは残ったままなので、フラグだけでは試合中に撃破を判定できない。
-///  - 行動不能: 被弾後に Mobile を失い、その状態が続いたとき（ゲームの対戦モードもこれを「倒した」と数える: ImmobilizeObjective）。
+///  - 行動不能: 被弾後に Mobile を失い、その状態が続いたとき。ゲームの対戦モードはこれを「倒した」と数える（ImmobilizeObjective）が、
+///    DestroyedOnly の間は DefeatRule が撃破だけで数え直す。
 ///  - 試合が終わってから（DeathmatchGameMode.missionRunning が false）はリセットで状態が変わるので判定しない。
 ///  - 戦果: 砲の発射（CannonBehaviour.FireInternal）が返す弾の ID と撃った車両を覚え、ProjectileRegister.projectileHistory
 ///    （弾 ID → 最新の弾イベント）に HitDamageModelProjectileEvent が出たら、命中したダメージモデルの Rigidbody から被弾車両を求める。
@@ -201,6 +219,48 @@ internal sealed class KillTracker
     /// <summary>キルログで撃破と判定した車両か。</summary>
     public bool IsKnockedOut(IntPtr vehicle) => _byVehicle.TryGetValue(vehicle, out var record) && record.KnockedOut;
 
+    /// <summary>
+    /// 弾が直接当たらずに倒した（榴弾の爆風）車両を、撃った車両の戦果にする（貫通弾と同じ扱い）。
+    /// </summary>
+    public void CreditBlast(IntPtr shooterBody, IntPtr victimBody)
+    {
+        if (shooterBody == IntPtr.Zero || !_byBody.TryGetValue(victimBody, out var victim) || !_byBody.TryGetValue(shooterBody, out var shooter)
+            || victim == shooter)
+            return;
+        var now = Time.time;
+        victim.LastHitBy = shooter;
+        victim.LastHitTime = now;
+        victim.LastPenetratedBy = shooter;
+        victim.LastPenetrationTime = now;
+    }
+
+    /// <summary>その Rigidbody の車両が撃破されたか（自車の撃破の画面など）。</summary>
+    public bool IsBodyKnockedOut(IntPtr body) => _byBody.TryGetValue(body, out var record) && record.KnockedOut;
+
+    // 試合中に撃破されて消えた車両の数（陣営ごと）。消えた車両は _byVehicle から外れるので別に数える（DefeatRule 用）
+    private readonly Dictionary<TeamID, int> _vanishedDestroyed = new();
+
+    /// <summary>陣営（ビットの重なり）ごとの、残っている車両と撃破された車両の数（DefeatRule 用）。</summary>
+    public void CountTeam(int mask, out int standing, out int fallen)
+    {
+        standing = 0;
+        fallen = 0;
+        foreach (var record in _byVehicle.Values)
+        {
+            if (((int)record.Team & mask) == 0)
+                continue;
+            if (record.KnockedOut)
+                fallen++;
+            else
+                standing++;
+        }
+        foreach (var pair in _vanishedDestroyed)
+        {
+            if (((int)pair.Key & mask) != 0)
+                fallen += pair.Value;
+        }
+    }
+
     // ------------------------------------------------------------------ 毎フレーム
 
     public void Update()
@@ -300,6 +360,8 @@ internal sealed class KillTracker
         {
             _wasRunning = running;
             Plugin.Logger.LogInfo($"Kill feed: match {(running ? "running" : "not running")}");
+            if (running)
+                _vanishedDestroyed.Clear();
         }
 
         var player = GetPlayerBody();
@@ -327,7 +389,15 @@ internal sealed class KillTracker
         {
             var record = _byVehicle[ptr];
             if (reportVanished && !record.KnockedOut && now - record.LastHitTime <= VanishKillWindow)
+            {
+                record.KnockedOut = true;
                 Report(KillKind.Destroyed, record, now, player, "vanished");
+            }
+            if (running && record.KnockedOut)
+            {
+                _vanishedDestroyed.TryGetValue(record.Team, out var lost);
+                _vanishedDestroyed[record.Team] = lost + 1;
+            }
             _byVehicle.Remove(ptr);
             if (record.Body != IntPtr.Zero && _byBody.TryGetValue(record.Body, out var byBody) && byBody == record)
                 _byBody.Remove(record.Body);
@@ -385,7 +455,7 @@ internal sealed class KillTracker
         var recentlyHit = now - record.LastHitTime <= Cfg.AttributionWindow.Value;
         var lostMobility = record.HadMobile && !mobile;
         var lostArms = record.HadArmed && !armed;
-        if (recentlyHit && (record.HadMobile || record.HadArmed)
+        if ((!Cfg.DestroyedOnly.Value || crewTotal == 0) && recentlyHit && (record.HadMobile || record.HadArmed)
             && (lostMobility || !record.HadMobile) && (lostArms || !record.HadArmed))
         {
             record.KnockedOut = true;

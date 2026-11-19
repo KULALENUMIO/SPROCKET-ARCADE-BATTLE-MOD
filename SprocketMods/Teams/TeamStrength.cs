@@ -79,6 +79,9 @@ internal sealed class TeamStrengthTracker
 
     public TeamStrengthTracker() => Instance = this;
 
+    /// <summary>撃破ではなく入れ替えで消える車両を、数から外す（サンドボックスの車両召喚）。</summary>
+    public void Forget(IntPtr vehicle) => _units.Remove(vehicle);
+
     /// <summary>味方・敵が両方いて表示できるとき true。</summary>
     public bool Valid { get; private set; }
     public int FriendlyAlive { get; private set; }

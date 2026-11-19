@@ -225,7 +225,7 @@ internal sealed unsafe class RepairSystem
         PlayerNoCrew = alive == 0;
 
         // キー: ArmTime 秒押し続けると 開始（修理中なら中止）。開始・中止の後は一度離すまで受け付けない
-        var pressed = Cfg.Key.Value.IsPressed();
+        var pressed = SprocketMods.UI.KeyInput.Held(Cfg.Key.Value);
         if (!pressed)
             _waitForRelease = false;
         var canArm = alive > 0 && (state.Mode == RepairMode.Repairing || state.Damaged);
@@ -279,7 +279,9 @@ internal sealed unsafe class RepairSystem
                 Advance(state, required, Time.deltaTime);
             return;
         }
-        if (Cfg.AiRepair.Value && alive > 0 && state.Damaged && now - state.DamagedSince >= Cfg.AiDelay.Value)
+        // 撃たれている最中や移動中は、AI の戦術（Ai/AiTactics.cs）が下がってから直させる
+        if (Cfg.AiRepair.Value && alive > 0 && state.Damaged && now - state.DamagedSince >= Cfg.AiDelay.Value
+            && Ai.AiDirector.Instance?.AllowRepair(state.Vehicle) != false)
             Begin(state);
     }
 
@@ -347,6 +349,19 @@ internal sealed unsafe class RepairSystem
     private static readonly HashSet<IntPtr> BlockedDrivers = new();
 
     /// <summary>この操縦手の車両が修理中なら true（入力を無視させる）。</summary>
+    /// <summary>乗員の数（生きている / 全員）。乗員の仕組みが無い車両は false。</summary>
+    public bool TryGetCrew(VehicleBehaviour vehicle, out int alive, out int total)
+    {
+        alive = total = 0;
+        if (vehicle == null || !_vehicles.TryGetValue(vehicle.Pointer, out var state))
+            return false;
+        alive = CountCrew(vehicle, state, out total);
+        return total > 0;
+    }
+
+    public bool IsRepairing(VehicleBehaviour vehicle) =>
+        vehicle != null && _vehicles.TryGetValue(vehicle.Pointer, out var state) && state.Mode == RepairMode.Repairing;
+
     public static bool IsDrivingBlocked(IntPtr driver) => BlockedDrivers.Count > 0 && BlockedDrivers.Contains(driver);
 
     /// <summary>
@@ -496,6 +511,22 @@ internal sealed unsafe class RepairSystem
         return count;
     }
 
+    /// <summary>車両の全部の部品（乗員を含む）の体力を 0 にする（榴弾が装甲を抜けたとき）。壊した数。</summary>
+    public int KillAll(VehicleBehaviour vehicle)
+    {
+        var count = 0;
+        if (vehicle == null || vehicle.WasCollected)
+            return 0;
+        ForEachEntry(vehicle, (owner, pool) =>
+        {
+            if (*(float*)(pool + PoolCurrent) <= 0f)
+                return;
+            HealthUtils.Kill(new IDurable(pool));
+            count++;
+        });
+        return count;
+    }
+
     private static bool IsBrokenTrack(IntPtr owner)
     {
         var track = new Il2CppSystem.Object(owner).TryCast<TrackAssembly>();
@@ -602,6 +633,15 @@ internal sealed unsafe class RepairSystem
     }
 
     /// <summary>VehicleBehaviour.healthRegister.entries（部品と体力プール）をメモリから読む。</summary>
+    /// <summary>車両の体力のある部品（部品, HealthPool）を全部たどる（榴弾の爆風などから）。</summary>
+    public void ForEachHealth(VehicleBehaviour vehicle, Action<IntPtr, IntPtr> action)
+    {
+        if (vehicle != null && !vehicle.WasCollected)
+            ForEachEntry(vehicle, action);
+    }
+
+    public string ComponentClass(IntPtr owner) => ClassName(owner);
+
     private void ForEachEntry(VehicleBehaviour vehicle, Action<IntPtr, IntPtr> action)
     {
         var register = vehicle.healthRegister;

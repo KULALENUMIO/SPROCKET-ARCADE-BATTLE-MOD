@@ -54,7 +54,7 @@ internal sealed class ArcadeController
     public void Update()
     {
         var cfg = Plugin.Arcade;
-        if (cfg.ToggleKey.Value.IsDown())
+        if (SprocketMods.UI.KeyInput.Down(cfg.ToggleKey.Value))
         {
             cfg.Enabled.Value = !cfg.Enabled.Value;
             Plugin.Logger.LogInfo($"Arcade Battle Mode {(cfg.Enabled.Value ? "ON" : "OFF")}");

@@ -9,7 +9,7 @@ using Object = UnityEngine.Object;
 namespace SprocketMods.KillFeed;
 
 /// <summary>
-/// 画面右上のキルログ。新しいものが一番上に入り、Duration 秒たつとフェードして消える。
+/// キルログ（画面右の中ほど、または右上）。新しいものが一番上に入り、Duration 秒たつとフェードして消える。
 /// 1 行ずつ角丸の半透明の黒いパネルに入れ、左端に色の帯（撃破 = 赤、行動不能 = 橙、自車が関わる行 = 金）を付ける。
 /// 名前の色: 自車 = 金、味方 = 青、敵 = 赤、不明 = 灰。
 /// 文の形は翻訳ファイルの「$K destroyed $V」などで言語ごとに変えられる（$K = 撃破した車両、$V = 撃破された車両）。
@@ -150,13 +150,15 @@ internal sealed class KillFeedView
     {
         var cfg = Plugin.KillFeed;
         var scale = Screen.height / 1080f;
-        var fontSize = cfg.FontSize.Value * scale * (Plugin.Style?.Scale.Value ?? 1f);
-        var lineHeight = fontSize * 1.75f;
-        var gap = 4f * scale;
-        var accentWidth = Mathf.Max(2f, 3f * scale);
-        var paddingX = 12f * scale;
+        var compact = cfg.Compact.Value;
+        var fontSize = cfg.FontSize.Value * scale * (Plugin.Style?.Scale.Value ?? 1f) * (compact ? 0.82f : 1f);
+        var lineHeight = fontSize * (compact ? 1.5f : 1.75f);
+        var gap = (compact ? 2f : 4f) * scale;
+        var accentWidth = Mathf.Max(2f, (compact ? 2f : 3f) * scale);
+        var paddingX = (compact ? 8f : 12f) * scale;
         var right = Screen.width - 24f * scale;
-        var top = Screen.height - 24f * scale;
+        // 右の中ほど: 右上のヒットカメラの下から始めて、画面の中央あたりに収める
+        var top = cfg.Position.Value == KillFeedPosition.TopRight ? Screen.height - 24f * scale : Screen.height * 0.6f;
         var now = Time.unscaledTime;
         var duration = cfg.Duration.Value;
         var slide = Mathf.Clamp01(Time.unscaledDeltaTime / SlideTime);

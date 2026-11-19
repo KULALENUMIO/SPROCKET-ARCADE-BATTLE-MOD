@@ -105,7 +105,7 @@ internal sealed class LocalizationManager
 
     public void Update()
     {
-        if (ReloadKey.Value.IsDown())
+        if (SprocketMods.UI.KeyInput.Down(ReloadKey.Value))
             Reload();
         if (_translator != null && Time.unscaledTime >= _nextFlush)
         {

@@ -25,6 +25,8 @@ public class AiConfig
     public readonly ConfigEntry<bool> HearPlayerShots;
     public readonly ConfigEntry<bool> HitReaction;
     public readonly ConfigEntry<bool> DrivingSafety;
+    public readonly ConfigEntry<bool> Tactics;
+    public readonly ConfigEntry<bool> TargetPriority;
     public readonly ConfigEntry<bool> AutoAbandon;
     public readonly ConfigEntry<float> FlipTime;
     public readonly ConfigEntry<float> StuckTime;
@@ -40,6 +42,9 @@ public class AiConfig
         HearPlayerShots = cfg.Bind(s, "HearPlayerShots", true, "プレイヤーの発砲も AI に聞こえる音にする（ゲームでは AI の発砲だけ）");
         HitReaction = cfg.Bind(s, "HitReaction", true, "撃たれたら撃ってきた方を見る");
         DrivingSafety = cfg.Bind(s, "DrivingSafety", true, "長いバックをさせない（その場で向きを変える）、押されたら経路を立て直す、詰まったら下がってやり直す");
+        Tactics = cfg.Bind(s, "Tactics", true,
+            "戦術（段階 2）: 突撃させず、撃ったら横へ陣地転換（ハルダウンの位置を好む）、損害が大きいと敵を向いたまま後退して立て直し、抜けない相手には回り込む");
+        TargetPriority = cfg.Bind(s, "TargetPriority", true, "目標の選び方: 撃ってきた相手・抜ける相手・味方が撃っている相手を優先する（ゲームは近い順だけ）");
         AutoAbandon = cfg.Bind(s, "AutoAbandon", true, "転覆した・詰まって動けなくなった AI の車両は、乗員が車両を放棄する（撃破扱い、キルログに「放棄」）");
         FlipTime = cfg.Bind(s, "FlipTime", 10f, new ConfigDescription("70° 以上傾いて止まったままこの秒数たったら放棄", new AcceptableValueRange<float>(3f, 60f)));
         StuckTime = cfg.Bind(s, "StuckTime", 30f,
@@ -60,7 +65,7 @@ public class AiConfig
 ///  - 操縦: 自動の後退を禁止（DriverAI.reverseAllowed = false。目的地が後ろでもその場で向きを変える）、
 ///    押されたら経路を計算し直す、入力があるのに動かなければ下がってやり直す
 /// </summary>
-internal sealed class AiDirector
+internal sealed partial class AiDirector
 {
     public static AiDirector Instance { get; private set; }
 
@@ -69,7 +74,7 @@ internal sealed class AiDirector
     private const float ThreatMemory = 15f;
     private const float TargetMemory = 30f;
 
-    private sealed class Unit
+    private sealed partial class Unit
     {
         public CommanderAI Commander;
         public DriverAI Driver;
@@ -210,11 +215,13 @@ internal sealed class AiDirector
             ProcessShots(now);
             UpdateReaction(now);
             UpdateDriving(now);
+            UpdateTactics(now);
             UpdateAbandon(now);
             if (Cfg.Log.Value && Time.unscaledTime >= _nextStatLog)
             {
                 _nextStatLog = Time.unscaledTime + 60f;
                 LogStats();
+                LogTactics();
             }
         }
         catch (Exception e)
@@ -250,6 +257,7 @@ internal sealed class AiDirector
                     if (unit == null)
                         continue;
                     _units[commander.Pointer] = unit;
+                    RegisterTargetBuffer(unit);
                     _byBody[unit.BodyPtr] = unit;
                     if (unit.DriverTask != IntPtr.Zero)
                         _byDriver[unit.DriverTask] = unit;
@@ -268,6 +276,10 @@ internal sealed class AiDirector
         {
             var unit = _units[key];
             _units.Remove(key);
+            CancelMove(unit);
+            var targets = unit.Commander?.prioritizedTargets;
+            if (targets != null)
+                _byTargetBuffer.Remove(targets.Pointer);
             _byBody.Remove(unit.BodyPtr);
             _byDriver.Remove(unit.DriverTask);
         }
@@ -361,8 +373,10 @@ internal sealed class AiDirector
             }
             if (unit.Driver != null)
                 unit.Driver.reverseAllowed = true;
+            RestoreTactics(unit);
         }
         _units.Clear();
+        _byTargetBuffer.Clear();
         _byBody.Clear();
         _byDriver.Clear();
         _aims.Clear();
@@ -626,6 +640,7 @@ internal sealed class AiDirector
         if (_byBody.TryGetValue(body, out var unit))
         {
             _aiShots++;
+            BattleStat(unit.Team).Shots++;
             // AI の発射: 撃った砲に一番近い照準（旋回中心）の修正を 1 段進める（砲が複数ある車両もあるので）
             AimState fired = null;
             var nearest = float.MaxValue;
@@ -699,7 +714,10 @@ internal sealed class AiDirector
             if (body != null && body.Pointer != shot.ShooterBody)
             {
                 if (_byBody.TryGetValue(body.Pointer, out var victim))
-                    OnAiHit(victim, shot.Origin, now);
+                {
+                    OnAiHit(victim, shot, now);
+                    RecordBattleHit(shot, victim, hit);
+                }
                 if (shot.Stat)
                 {
                     Count(shot, body.Pointer == shot.TargetBody);
@@ -717,10 +735,13 @@ internal sealed class AiDirector
             _shots.Remove(id);
     }
 
-    private void OnAiHit(Unit unit, Vector3 origin, float now)
+    private void OnAiHit(Unit unit, Shot shot, float now)
     {
+        var origin = shot.Origin;
         unit.ThreatPos = origin;
         unit.ThreatTime = now;
+        unit.HitAt = now;
+        unit.ThreatBody = shot.ShooterBody;
         if (!Cfg.HitReaction.Value)
             return;
         // 車長の視線を撃ってきた方へ（見回しは音の方向も優先するので、そのまましばらく向く）
@@ -836,6 +857,12 @@ internal sealed class AiDirector
         {
             if (unit.Abandoned || unit.Body == null || unit.Body.WasCollected || unit.Vehicle == null || unit.Vehicle.WasCollected)
                 continue;
+            // 撃破済み（乗員全滅など）の車両は放棄しない（キルログに「放棄」が重ねて出る）
+            if (KillFeed.KillTracker.Instance?.IsKnockedOut(unit.Vehicle.Pointer) == true || CrewFraction(unit) <= 0f)
+            {
+                unit.Abandoned = true;
+                continue;
+            }
             var dt = now - unit.LastAbandonCheck;
             if (dt < 0.5f)
                 continue;
@@ -904,6 +931,87 @@ internal sealed class AiDirector
         _statShots[shot.Bucket, shot.Index]++;
         if (hit)
             _statHits[shot.Bucket, shot.Index]++;
+    }
+
+    // ------------------------------------------------------------------ 試合ごとの記録（開発用: 自動対戦の評価）
+
+    private sealed class TeamBattleStats
+    {
+        public int Shots, Hits, Penetrations, Friendly, Front, Side, Rear;
+        public float Idle; // 敵が見えず、止まったまま交戦の状態でいた時間（車両 × 秒）
+        public float Exposed; // 見えている敵に側面・背面（60° 以上）を向けていた時間（車両 × 秒）
+    }
+
+    private readonly Dictionary<TeamID, TeamBattleStats> _battleStats = new();
+
+    private TeamBattleStats BattleStat(TeamID team)
+    {
+        if (!_battleStats.TryGetValue(team, out var stats))
+            _battleStats[team] = stats = new TeamBattleStats();
+        return stats;
+    }
+
+    public void ResetBattleStats() => _battleStats.Clear();
+
+    /// <summary>命中を数える。撃った側: 命中・貫通・味方撃ち。撃たれた側: 正面・側面・背面のどこに当たったか。</summary>
+    private void RecordBattleHit(Shot shot, Unit victim, HitDamageModelProjectileEvent hit)
+    {
+        if (!_byBody.TryGetValue(shot.ShooterBody, out var shooter))
+            return;
+        if (shooter.Team == victim.Team)
+        {
+            BattleStat(shooter.Team).Friendly++;
+            return;
+        }
+        var stats = BattleStat(shooter.Team);
+        stats.Hits++;
+        if ((hit.Type & HitDamageModelProjectileEvent.HitType.Penetrated) != 0)
+            stats.Penetrations++;
+        var incoming = -hit.Incidence;
+        incoming.y = 0f;
+        var forward = victim.Body.rotation * Vector3.forward;
+        forward.y = 0f;
+        if (incoming.sqrMagnitude < 1e-4f || forward.sqrMagnitude < 1e-4f)
+            return;
+        var angle = Vector3.Angle(incoming, forward);
+        var received = BattleStat(victim.Team);
+        if (angle < 45f)
+            received.Front++;
+        else if (angle > 135f)
+            received.Rear++;
+        else
+            received.Side++;
+    }
+
+    /// <summary>1 秒ごとの車両の様子を数える（AiTactics.UpdateTactics から）。</summary>
+    private void RecordBattleSecond(Unit unit, bool visible, float seconds)
+    {
+        var stats = BattleStat(unit.Team);
+        if (!visible && unit.Tactic == Tactic.Engage && unit.Body.velocity.magnitude < 0.5f && unit.Driver?.Immobilized != true)
+            stats.Idle += seconds;
+        if (visible)
+        {
+            var toEnemy = unit.TargetPos - unit.Body.position;
+            toEnemy.y = 0f;
+            var forward = unit.Body.rotation * Vector3.forward;
+            forward.y = 0f;
+            if (toEnemy.sqrMagnitude > 1f && forward.sqrMagnitude > 1e-4f && Vector3.Angle(toEnemy, forward) > 60f)
+                stats.Exposed += seconds;
+        }
+    }
+
+    public IEnumerable<string> DescribeBattleStats()
+    {
+        var lines = new List<string>();
+        foreach (var pair in _battleStats)
+        {
+            var s = pair.Value;
+            var received = s.Front + s.Side + s.Rear;
+            lines.Add($"{pair.Key}: shots {s.Shots}, hits {s.Hits} ({s.Hits * 100f / Mathf.Max(1, s.Shots):0}%), pen {s.Penetrations}, friendly {s.Friendly}; " +
+                      $"hits taken front/side/rear {s.Front}/{s.Side}/{s.Rear} (side+rear {(s.Side + s.Rear) * 100f / Mathf.Max(1, received):0}%); " +
+                      $"idle {s.Idle:0} s, side to enemy {s.Exposed:0} s");
+        }
+        return lines;
     }
 
     private void LogStats()

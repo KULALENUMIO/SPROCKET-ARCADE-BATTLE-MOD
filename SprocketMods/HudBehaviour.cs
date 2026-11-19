@@ -18,6 +18,8 @@ public class HudBehaviour : MonoBehaviour
     private readonly KillFeed.KillFeedView _killFeed = new();
     private readonly Hits.HitTracker _hitTracker = new();
     private readonly Hits.HitReportView _hitReport = new();
+    private readonly HitCam.HitCamTracker _hitCamTracker = new();
+    private readonly HitCam.HitCamView _hitCam = new();
     private readonly Targets.TargetInfoTracker _targetInfo = new();
     private readonly Targets.TargetInfoView _targetInfoView = new();
     private float _nextTargetInfoErrorLog;
@@ -29,7 +31,13 @@ public class HudBehaviour : MonoBehaviour
     private readonly Hits.DamageIndicator _damageIndicator = new();
     private readonly Repair.RepairSystem _repair = new();
     private readonly Ai.AiDirector _aiDirector = new();
+    private readonly Design.SandboxSpawner _sandboxSpawner = new();
+    private readonly Debug.DebugConsole _debugConsole = new();
     private readonly Repair.RepairView _repairView = new();
+    private readonly Ammo.AmmoSystem _ammo = new();
+    private readonly Ammo.AmmoView _ammoView = new();
+    private readonly UI.DeathScreen _deathScreen = new();
+    private float _nextAmmoErrorLog;
     private float _nextRepairViewErrorLog;
     private float _nextHitReportErrorLog;
     private float _nextKillFeedErrorLog;
@@ -60,10 +68,33 @@ public class HudBehaviour : MonoBehaviour
         _arcade.Update();
         _killTracker.Update();
         _hitTracker.Update();
+        _hitCamTracker.Update();
         _targetInfo.Update();
         _teamStrength.Update();
         _repair.Update();
+        try
+        {
+            _ammo.Update();
+        }
+        catch (Exception e)
+        {
+            if (Time.unscaledTime >= _nextAmmoErrorLog)
+            {
+                _nextAmmoErrorLog = Time.unscaledTime + 5f;
+                Plugin.Logger.LogError($"Ammo failed: {e}");
+            }
+        }
         _aiDirector.Update();
+        try
+        {
+            Design.CylinderTurret.Update();
+            _sandboxSpawner.Update();
+            _debugConsole.Update();
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogError($"Design tools failed: {e}");
+        }
         try
         {
             Weapons.AutocannonMuzzle.Update();
@@ -125,6 +156,20 @@ public class HudBehaviour : MonoBehaviour
             {
                 _nextHitReportErrorLog = Time.unscaledTime + 5f;
                 Plugin.Logger.LogError($"Hit report view failed: {e}");
+            }
+        }
+        _hitCam.LateUpdate();
+        try
+        {
+            _deathScreen.LateUpdate();
+            _ammoView.LateUpdate();
+        }
+        catch (Exception e)
+        {
+            if (Time.unscaledTime >= _nextAmmoErrorLog)
+            {
+                _nextAmmoErrorLog = Time.unscaledTime + 5f;
+                Plugin.Logger.LogError($"Ammo view failed: {e}");
             }
         }
         _damageIndicator.Update();
@@ -223,12 +268,12 @@ internal sealed class HudController
     public void Update()
     {
         var cfg = Plugin.Cfg;
-        if (cfg.ToggleKey.Value.IsDown())
+        if (SprocketMods.UI.KeyInput.Down(cfg.ToggleKey.Value))
         {
             cfg.Enabled.Value = !cfg.Enabled.Value;
             Plugin.Logger.LogInfo($"HUD {(cfg.Enabled.Value ? "enabled" : "disabled")}");
         }
-        if (cfg.ToggleTrajectoryKey.Value.IsDown())
+        if (SprocketMods.UI.KeyInput.Down(cfg.ToggleTrajectoryKey.Value))
             cfg.ShowTrajectory.Value = !cfg.ShowTrajectory.Value;
     }
 

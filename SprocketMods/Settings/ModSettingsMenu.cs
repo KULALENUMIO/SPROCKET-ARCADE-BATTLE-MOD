@@ -92,6 +92,7 @@ internal static class ModSettingsUi
                 case 0:
                     DrawLanguage(d, menu);
                     DrawAppearance(d, menu);
+                    DrawDesignTools(d, menu);
                     break;
                 case 1:
                     DrawDriving(d, menu);
@@ -103,6 +104,7 @@ internal static class ModSettingsUi
                     break;
                 case 3:
                     DrawKillFeed(d, menu);
+                    DrawHitCam(d, menu);
                     DrawHitReport(d, menu);
                     DrawDamageIndicator(d, menu);
                     break;
@@ -150,11 +152,22 @@ internal static class ModSettingsUi
         d.Header(title);
     }
 
+    private static void DrawDesignTools(IGUIElementDrawer d, ModSettingsMenu menu)
+    {
+        Section(d, "Design & sandbox");
+        Toggle(d, menu, "Cylinder turret", Plugin.CylinderTurret.Enabled.Value, v => Plugin.CylinderTurret.Enabled.Value = v,
+            "Adds a 32-sided cylinder shape to the turret editor.");
+        Toggle(d, menu, "Sandbox spawn menu", Plugin.SandboxSpawner.Enabled.Value, v => Plugin.SandboxSpawner.Enabled.Value = v,
+            "In the sandbox, press Z while driving to pick one of your designs. It replaces the target that is a copy of your vehicle.");
+    }
+
     private static void DrawAppearance(IGUIElementDrawer d, ModSettingsMenu menu)
     {
         var st = Plugin.Style;
         Section(d, "HUD appearance");
         Slider(d, menu, "Panel background opacity", st.PanelOpacity.Value, 0f, 1f, v => st.PanelOpacity.Value = v);
+        Toggle(d, menu, "Red screen when destroyed", st.DeathEffect.Value, v => st.DeathEffect.Value = v,
+            "When your vehicle is destroyed, darken the screen edges in red, drain the colour and blur the edges (War Thunder style).");
         Slider(d, menu, "Panel size", st.Scale.Value, 0.6f, 1.6f, v => st.Scale.Value = v);
     }
 
@@ -248,6 +261,11 @@ internal static class ModSettingsUi
             "When hit, the AI looks toward where the shot came from.");
         Toggle(d, menu, "Safe driving", ai.DrivingSafety.Value, v => ai.DrivingSafety.Value = v,
             "No long reversing (turns in place instead), re-plans after being pushed, backs off and retries when stuck.");
+        Section(d, "AI tactics");
+        Toggle(d, menu, "Tactics", ai.Tactics.Value, v => ai.Tactics.Value = v,
+            "No charging: after a few shots the AI moves sideways to a new firing spot (preferring hull-down), backs off into cover when badly hurt and repairs there, and flanks targets it cannot penetrate from the front.");
+        Toggle(d, menu, "Smarter target choice", ai.TargetPriority.Value, v => ai.TargetPriority.Value = v,
+            "Prefers whoever is shooting at it, targets it can penetrate and targets its allies are already firing at (the game only picks the closest).");
         Toggle(d, menu, "Abandon flipped or stuck vehicles", ai.AutoAbandon.Value, v => ai.AutoAbandon.Value = v,
             "The crew of an AI vehicle that has flipped over or is stuck for good bails out (counts as knocked out).");
         Slider(d, menu, "Abandon after flipped (s)", ai.FlipTime.Value, 3f, 60f, v => ai.FlipTime.Value = (float)Math.Round(v));
@@ -274,12 +292,45 @@ internal static class ModSettingsUi
         var kf = Plugin.KillFeed;
         Section(d, "Kill feed");
         Toggle(d, menu, "Kill feed", kf.Enabled.Value, v => kf.Enabled.Value = v,
-            "Shows who destroyed whom at the top right of the screen.");
+            "Shows who destroyed whom on the right side of the screen.");
+        Toggle(d, menu, "Kill feed at the top right", kf.Position.Value == KillFeed.KillFeedPosition.TopRight,
+            v => kf.Position.Value = v ? KillFeed.KillFeedPosition.TopRight : KillFeed.KillFeedPosition.MiddleRight,
+            "Off: middle of the right edge (the hit camera uses the top right).");
+        Toggle(d, menu, "Compact kill feed", kf.Compact.Value, v => kf.Compact.Value = v, "Smaller, tighter lines.");
         Toggle(d, menu, "Show immobilized vehicles", kf.ShowImmobilized.Value, v => kf.ShowImmobilized.Value = v,
             "Also log vehicles that can no longer move but are still armed.");
         Slider(d, menu, "Kill feed lines", kf.MaxEntries.Value, 1f, 15f, v => kf.MaxEntries.Value = (int)Math.Round(v));
         Slider(d, menu, "Kill feed duration (s)", kf.Duration.Value, 2f, 30f, v => kf.Duration.Value = v);
         Slider(d, menu, "Kill feed text size", kf.FontSize.Value, 10f, 36f, v => kf.FontSize.Value = v);
+    }
+
+    private static void DrawHitCam(IGUIElementDrawer d, ModSettingsMenu menu)
+    {
+        var hc = Plugin.HitCam;
+        Section(d, "Hit camera");
+        Toggle(d, menu, "Hit camera", hc.Enabled.Value, v => hc.Enabled.Value = v,
+            "War Thunder-style hit camera at the top right: the target at the moment of impact, x-rayed, with the shell and spall paths.");
+        Toggle(d, menu, "Hit camera: non-penetrating hits", hc.ShowNonPenetrating.Value, v => hc.ShowNonPenetrating.Value = v,
+            "Also show hits that did not penetrate (non-penetrations and ricochets).");
+        Toggle(d, menu, "Kill camera", hc.KillCam.Value, v => hc.KillCam.Value = v,
+            "When you destroy a vehicle, circle around it and replay the killing shot.");
+        Slider(d, menu, "Hit camera width", hc.Size.Value, 280f, 760f, v => hc.Size.Value = v);
+        Slider(d, menu, "Hit camera duration (s)", hc.HitDuration.Value, 1.5f, 10f, v => hc.HitDuration.Value = v);
+        Slider(d, menu, "Kill camera duration (s)", hc.KillDuration.Value, 3f, 15f, v => hc.KillDuration.Value = v);
+        Slider(d, menu, "Hit camera: tracks and fittings opacity", hc.FittingOpacity.Value, 0f, 0.8f, v => hc.FittingOpacity.Value = v);
+        var am = Plugin.Ammo;
+        Toggle(d, menu, "Shell types (1 / 2 / 3)", am.Enabled.Value, v => am.Enabled.Value = v,
+            "Switch between armour-piercing, armour-piercing high-explosive and high-explosive shells with 1, 2 and 3. Any stored round can be fired as any type.");
+        Toggle(d, menu, "High-explosive penetration destroys everything", am.HeDestroysAll.Value, v => am.HeDestroysAll.Value = v,
+            "When a high-explosive shell gets through the armour, every part of the target (crew included) is destroyed.");
+        Toggle(d, menu, "High-explosive blast kills exposed crew", am.HeKillsExposedCrew.Value, v => am.HeKillsExposedCrew.Value = v,
+            "Where a high-explosive shell bursts (on a vehicle or on the ground), crew it can reach in a straight line, such as in open-topped vehicles, are killed. Crew behind armour are unharmed.");
+        var td = Plugin.TrackDamage;
+        Toggle(d, menu, "Track belt damage", td.Enabled.Value, v => td.Enabled.Value = v,
+            "Hits on the track belt damage the track and can break it (the game only checks the wheels). Applies to vehicles built afterwards.");
+        var kf = Plugin.KillFeed;
+        Toggle(d, menu, "Only destruction counts as a kill", kf.DestroyedOnly.Value, v => kf.DestroyedOnly.Value = v,
+            "A vehicle counts as destroyed only when its whole crew is out. Immobilized or disarmed vehicles can be repaired, so they do not count, also for winning the battle.");
     }
 
     private static void DrawHitReport(IGUIElementDrawer d, ModSettingsMenu menu)

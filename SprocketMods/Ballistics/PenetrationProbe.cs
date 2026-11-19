@@ -185,12 +185,14 @@ internal sealed class PenetrationProbe
         IPenetrationSimulation sim;
         cs.SimulationRanInternal = null;
         cs.SimulationRan = null;
+        SprocketMods.Ammo.AmmoSystem.Probing = true;
         try
         {
             sim = cs.Penetrate(ref info, PenetrationSimulationOptions.Default);
         }
         finally
         {
+            SprocketMods.Ammo.AmmoSystem.Probing = false;
             cs.SimulationRanInternal = internalHandler;
             cs.SimulationRan = publicHandler;
         }
