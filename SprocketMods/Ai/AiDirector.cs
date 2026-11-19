@@ -112,6 +112,7 @@ internal sealed partial class AiDirector
         public Vector3 ProgressAnchor;
         public float TryingTime;
         public float LastAbandonCheck;
+        public float NextPushCheck;
     }
 
     private sealed class AimState
@@ -187,7 +188,7 @@ internal sealed partial class AiDirector
     {
         var first = 0.3f + 0.0019f * distance;
         var floor = 0.25f + 0.00075f * distance;
-        var sigma = Mathf.Max(floor, first * Mathf.Pow(1f - Correction[Level], shots));
+        var sigma = MathF.Max(floor, first * MathF.Pow(1f - Correction[Level], shots));
         if (moving)
             sigma *= 3f;
         return sigma * ErrorScale[Level];
@@ -204,43 +205,56 @@ internal sealed partial class AiDirector
                 Restore();
                 return;
             }
-            if (Time.timeScale <= 0f)
+            if (Core.Fast.TimeScale <= 0f)
                 return;
             var now = Time.time;
-            if (Time.unscaledTime >= _nextRefresh)
+            var perf = Debug.Perf.Begin();
+            if (Core.Fast.Unscaled >= _nextRefresh)
             {
-                _nextRefresh = Time.unscaledTime + RefreshInterval;
+                _nextRefresh = Core.Fast.Unscaled + RefreshInterval;
                 Refresh();
             }
+            perf = Mark("Ai/Refresh", perf);
             ProcessShots(now);
+            perf = Mark("Ai/Shots", perf);
             UpdateReaction(now);
+            perf = Mark("Ai/Reaction", perf);
             UpdateDriving(now);
+            perf = Mark("Ai/Driving", perf);
             UpdateTactics(now);
+            perf = Mark("Ai/Tactics", perf);
             UpdateAbandon(now);
-            if (Cfg.Log.Value && Time.unscaledTime >= _nextStatLog)
+            Mark("Ai/Abandon", perf);
+            if (Cfg.Log.Value && Core.Fast.Unscaled >= _nextStatLog)
             {
-                _nextStatLog = Time.unscaledTime + 60f;
+                _nextStatLog = Core.Fast.Unscaled + 60f;
                 LogStats();
                 LogTactics();
             }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"AI director failed: {e}");
             }
         }
+    }
+
+    private static long Mark(string key, long start)
+    {
+        Debug.Perf.End(key, start);
+        return Debug.Perf.Begin();
     }
 
     /// <summary>AI の一覧を作り直し、設定（照準の誤差・自動の後退）を当てる。</summary>
     private void Refresh()
     {
         var now = Time.time;
-        if (Time.unscaledTime >= _nextVehicleSearch)
+        if (Core.Fast.Unscaled >= _nextVehicleSearch)
         {
-            _nextVehicleSearch = Time.unscaledTime + 2f;
+            _nextVehicleSearch = Core.Fast.Unscaled + 2f;
             SearchVehicles();
         }
         var list = AIRegister.register;
@@ -256,6 +270,8 @@ internal sealed partial class AiDirector
                     unit = CreateUnit(commander);
                     if (unit == null)
                         continue;
+                    // 最初の判断は 1 秒の中にばらす（試合開始で全員が同じフレームに考えると引っかかる）
+                    unit.NextTactic = now + (_units.Count % 10) * 0.1f;
                     _units[commander.Pointer] = unit;
                     RegisterTargetBuffer(unit);
                     _byBody[unit.BodyPtr] = unit;
@@ -386,13 +402,9 @@ internal sealed partial class AiDirector
     private void SearchVehicles()
     {
         _vehicles.Clear();
-        var found = Object.FindObjectsByType(Il2CppType.Of<VehicleBehaviour>(), FindObjectsSortMode.None);
-        if (found == null)
-            return;
-        foreach (var obj in found)
+        foreach (var vehicle in Core.VehicleRegistry.Behaviours)
         {
-            var vehicle = obj?.TryCast<VehicleBehaviour>();
-            if (vehicle == null)
+            if (vehicle == null || vehicle.WasCollected)
                 continue;
             EntityID id;
             try
@@ -436,7 +448,7 @@ internal sealed partial class AiDirector
             return;
         _aimResolved++;
         state.Pivot = pivot;
-        var now = Time.time;
+        var now = Core.Fast.GameTime;
         var flags = output.Flags;
 
         if ((flags & GunLayerTaskFlags.AimAtDirection) == 0)
@@ -455,7 +467,7 @@ internal sealed partial class AiDirector
 
         var target = Pack(output.TargetID);
         var vector = output.AimDirection;
-        var distance = vector.magnitude;
+        var distance = Core.Fast.Length(vector);
         if (distance < 1f)
             return;
         state.LastDistance = distance;
@@ -468,38 +480,38 @@ internal sealed partial class AiDirector
             var extra = AcquireExtra[Level];
             state.AcquireDelay = Range(extra.Min, extra.Max);
             state.Shots = 0;
-            state.ShotPos = state.Unit.Body.position;
+            state.ShotPos = Core.Fast.Position(state.Unit.Body.transform);
             state.TargetVelocity = TargetVelocity(target);
             state.Bias = Gaussian2();
         }
         else
         {
             // 自分が 10 m 以上動いた、目標が急に速さを変えた → 修正が半分戻る
-            var moved = (state.Unit.Body.position - state.ShotPos).magnitude > 10f;
+            var position = Core.Fast.Position(state.Unit.Body.transform);
+            var moved = Core.Fast.Distance(position, state.ShotPos) > 10f;
             var velocity = TargetVelocity(target);
-            var maneuver = (velocity - state.TargetVelocity).magnitude > 4f;
+            var maneuver = Core.Fast.Distance(velocity, state.TargetVelocity) > 4f;
             if (moved || maneuver)
             {
                 state.Shots /= 2;
-                state.ShotPos = state.Unit.Body.position;
+                state.ShotPos = position;
                 state.TargetVelocity = velocity;
                 state.Bias = Gaussian2();
             }
         }
-        var targetPos = pivot + vector;
+        var targetPos = Core.Fast.Add(pivot, vector);
         state.Unit.LastTargetPos = targetPos;
         state.Unit.LastTargetTime = now;
 
         // 照準に誤差を足す（目標の位置で、視線に垂直な左右・上下へずらす）
-        var moving = state.Unit.Body.velocity.magnitude > 1.5f;
+        var moving = Core.Fast.Length(state.Unit.Body.velocity) > 1.5f;
         var sigma = Sigma(distance, state.Shots, moving);
         if (now - state.Unit.ThreatTime < 2f)
             sigma *= 1.5f; // 撃たれた直後は動揺
-        var forward = vector / distance;
-        var right = Vector3.Cross(Vector3.up, forward);
-        right = right.sqrMagnitude < 1e-6f ? Vector3.right : right.normalized;
-        var up = Vector3.Cross(forward, right).normalized;
-        output.AimDirection = vector + right * (state.Bias.x * sigma) + up * (state.Bias.y * sigma);
+        var forward = Core.Fast.Mul(vector, 1f / distance);
+        var right = Core.Fast.Normalize(Core.Fast.Cross(Core.Fast.V3(0f, 1f, 0f), forward), Core.Fast.V3(1f, 0f, 0f));
+        var up = Core.Fast.Normalize(Core.Fast.Cross(forward, right), Core.Fast.V3(0f, 1f, 0f));
+        output.AimDirection = Core.Fast.Add(vector, Core.Fast.Add(Core.Fast.Mul(right, state.Bias.x * sigma), Core.Fast.Mul(up, state.Bias.y * sigma)));
 
         // 捕捉の遅れの間は狙うだけで撃たない
         if (now - state.AcquiredAt < state.AcquireDelay)
@@ -533,13 +545,13 @@ internal sealed partial class AiDirector
 
     private Vector3 TargetVelocity(int target)
     {
-        if (_vehicles.TryGetValue(target, out var vehicle) && vehicle != null && !vehicle.WasCollected)
+        if (_vehicles.TryGetValue(target, out var vehicle) && Core.Fast.Alive(vehicle))
         {
             var body = vehicle.Rigidbody;
-            if (body != null)
+            if (Core.Fast.Alive(body))
                 return body.velocity;
         }
-        return Vector3.zero;
+        return default;
     }
 
     /// <summary>見張りの方向（撃たれた方向 → 最後に目標がいた方向 → 敵陣の方向）。</summary>
@@ -776,7 +788,7 @@ internal sealed partial class AiDirector
         foreach (var unit in _units.Values)
         {
             var body = unit.Body;
-            if (body == null || body.WasCollected || unit.Driver == null)
+            if (!Core.Fast.Alive(body) || unit.Driver is null)
                 continue;
 
             // 下がり終えたら経路を計算し直す
@@ -786,13 +798,20 @@ internal sealed partial class AiDirector
                 unit.Driver.pathRecomputeRequired = true;
             }
 
+            // 押された・詰まりの確認は 0.1 秒ごと（速度などの読み取りは 1 回ごとにゲーム側にごみが出る）
+            if (now < unit.NextPushCheck)
+                continue;
+            unit.NextPushCheck = now + 0.1f;
+
             // 押された: 横滑りしている（履帯の車両は自分では横に動かない）、または
             // その場旋回でもなくハンドルもほとんど切っていないのに速く回っている
-            var yawRate = Mathf.Abs(body.angularVelocity.y);
-            var lateral = Mathf.Abs(Vector3.Dot(body.velocity, body.transform.right));
-            var rotating = unit.Driver.movementState == DriverAI.MovementState.StopAndRotate;
+            // （値を返すゲームの呼び出しは 1 回ごとにごみが出るので、回数を減らし、計算は C# で行う）
+            var yawRate = MathF.Abs(body.angularVelocity.y);
+            Core.Fast.Pose(body.transform, out var bodyPosition, out var bodyRotation);
+            var lateral = MathF.Abs(Core.Fast.Dot(body.velocity, Core.Fast.Right(bodyRotation)));
             var sliding = lateral > 3.5f;
-            var spinning = yawRate > 1.4f && !rotating && Mathf.Abs(unit.GameSteer) < 0.1f;
+            var spinning = yawRate > 1.4f && MathF.Abs(unit.GameSteer) < 0.1f
+                           && unit.Driver.movementState != DriverAI.MovementState.StopAndRotate;
             if (!sliding && !spinning)
                 unit.PushSince = float.NaN;
             else if (float.IsNaN(unit.PushSince))
@@ -806,7 +825,7 @@ internal sealed partial class AiDirector
                 Override(unit, 0f, 0f, 1f);
                 unit.StuckRecomputeAt = now + 1f;
                 if (Cfg.Log.Value)
-                    Plugin.Logger.LogInfo($"AI: {unit.Name} pushed (sideways {lateral:0.0} m/s, yaw {yawRate * Mathf.Rad2Deg:0}°/s), re-planning");
+                    Plugin.Logger.LogInfo($"AI: {unit.Name} pushed (sideways {lateral:0.0} m/s, yaw {yawRate * (180f / MathF.PI):0}°/s), re-planning");
             }
 
             // 詰まり: 6 秒間ずっとアクセルを踏んでいるのに 2 m も動いていない
@@ -814,13 +833,13 @@ internal sealed partial class AiDirector
                 continue;
             unit.NextSample = now + 0.5f;
             // 走行不能（履帯が切れたなど）なら動けないのは当然なので詰まり扱いしない
-            var driving = Mathf.Abs(unit.GameThrottle) > 0.3f && now >= unit.OverrideUntil && !unit.Driver.Immobilized;
-            unit.Track.Enqueue((now, body.position, driving));
+            var driving = MathF.Abs(unit.GameThrottle) > 0.3f && now >= unit.OverrideUntil && !unit.Driver.Immobilized;
+            unit.Track.Enqueue((now, bodyPosition, driving));
             while (unit.Track.Count > 0 && now - unit.Track.Peek().Time > 6f)
                 unit.Track.Dequeue();
-            if ((body.position - unit.StuckAnchor).magnitude > 20f)
+            if (Core.Fast.Distance(bodyPosition, unit.StuckAnchor) > 20f)
             {
-                unit.StuckAnchor = body.position;
+                unit.StuckAnchor = bodyPosition;
                 unit.StuckAttempts = 0;
             }
             if (unit.Track.Count < 11 || unit.StuckAttempts >= 3)
@@ -831,7 +850,7 @@ internal sealed partial class AiDirector
             var allDriving = true;
             foreach (var sample in unit.Track)
                 allDriving &= sample.Driving;
-            if (!allDriving || (body.position - first.Pos).magnitude >= 2f)
+            if (!allDriving || Core.Fast.Distance(bodyPosition, first.Pos) >= 2f)
                 continue;
             unit.StuckAttempts++;
             var back = unit.GameThrottle > 0f ? -0.7f : 0.7f;
@@ -855,7 +874,13 @@ internal sealed partial class AiDirector
             return;
         foreach (var unit in _units.Values)
         {
-            if (unit.Abandoned || unit.Body == null || unit.Body.WasCollected || unit.Vehicle == null || unit.Vehicle.WasCollected)
+            if (unit.Abandoned)
+                continue;
+            var dt = now - unit.LastAbandonCheck;
+            if (dt < 0.5f)
+                continue;
+            unit.LastAbandonCheck = now;
+            if (!Core.Fast.Alive(unit.Body) || !Core.Fast.Alive(unit.Vehicle))
                 continue;
             // 撃破済み（乗員全滅など）の車両は放棄しない（キルログに「放棄」が重ねて出る）
             if (KillFeed.KillTracker.Instance?.IsKnockedOut(unit.Vehicle.Pointer) == true || CrewFraction(unit) <= 0f)
@@ -863,16 +888,13 @@ internal sealed partial class AiDirector
                 unit.Abandoned = true;
                 continue;
             }
-            var dt = now - unit.LastAbandonCheck;
-            if (dt < 0.5f)
-                continue;
-            unit.LastAbandonCheck = now;
             if (dt > 2f)
                 dt = 0.5f; // ポーズ明けなど
             var body = unit.Body;
 
             // 転覆
-            var flipped = body.transform.up.y < 0.34f && body.velocity.magnitude < 2f;
+            Core.Fast.Pose(body.transform, out var bodyPosition, out var bodyRotation);
+            var flipped = Core.Fast.Up(bodyRotation).y < 0.34f && Core.Fast.Length(body.velocity) < 2f;
             if (!flipped)
                 unit.FlippedSince = float.NaN;
             else if (float.IsNaN(unit.FlippedSince))
@@ -884,12 +906,12 @@ internal sealed partial class AiDirector
             }
 
             // 詰まり: 4 m 進んだら数え直す。走行不能の車両と、アクセルを踏んでいない間（停止して撃つ・修理中）は数えない
-            if ((body.position - unit.ProgressAnchor).magnitude > 4f)
+            if (Core.Fast.Distance(bodyPosition, unit.ProgressAnchor) > 4f)
             {
-                unit.ProgressAnchor = body.position;
+                unit.ProgressAnchor = bodyPosition;
                 unit.TryingTime = 0f;
             }
-            else if (Mathf.Abs(unit.GameThrottle) > 0.3f && unit.Driver != null && !unit.Driver.Immobilized)
+            else if (MathF.Abs(unit.GameThrottle) > 0.3f && unit.Driver is not null && !unit.Driver.Immobilized)
             {
                 unit.TryingTime += dt;
                 if (unit.TryingTime >= Cfg.StuckTime.Value)

@@ -75,7 +75,7 @@ internal sealed class PenetrationProbe
             return new ProbeResult { Target = target };
 
         var cfg = Plugin.Cfg;
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         var unchanged = cs.Pointer == _lastModel && weapon.Shell.TypeId == _lastShell
                         && (impact.Point - _lastPoint).sqrMagnitude < 0.0004f;
         if (unchanged || now - _lastTime < cfg.PenetrationUpdateInterval.Value && cs.Pointer == _lastModel)
@@ -222,9 +222,9 @@ internal sealed class PenetrationProbe
             _ownModelFound = false;
             _nextOwnSearch = 0f;
         }
-        if (_ownModelFound || ownBody == IntPtr.Zero || Time.unscaledTime < _nextOwnSearch)
+        if (_ownModelFound || ownBody == IntPtr.Zero || Core.Fast.Unscaled < _nextOwnSearch)
             return;
-        _nextOwnSearch = Time.unscaledTime + 1f;
+        _nextOwnSearch = Core.Fast.Unscaled + 1f;
 
         var models = DamageModel.models;
         if (models == null)

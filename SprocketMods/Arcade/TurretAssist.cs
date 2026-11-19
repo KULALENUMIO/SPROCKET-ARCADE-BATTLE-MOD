@@ -72,11 +72,11 @@ internal sealed unsafe class TurretAssist
     /// <summary>自車の照準機構の軸を集める（ArcadeController から毎 FixedUpdate 呼ばれる）。</summary>
     public void Refresh(VehicleController controller, IntPtr vehicle, GameObject vehicleObject)
     {
-        if (vehicle == _vehicle && Time.unscaledTime < _nextRefresh)
+        if (vehicle == _vehicle && Core.Fast.Unscaled < _nextRefresh)
             return;
         var changed = vehicle != _vehicle;
         _vehicle = vehicle;
-        _nextRefresh = Time.unscaledTime + 1f;
+        _nextRefresh = Core.Fast.Unscaled + 1f;
         _axes.Clear();
 
         if (changed)

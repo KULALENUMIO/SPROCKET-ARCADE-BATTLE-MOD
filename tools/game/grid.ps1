@@ -29,7 +29,7 @@ $hwnd = [Win]::UnityWindow([uint32](Get-Process Sprocket).Id)
 $r = New-Object Win+RECT
 [Win]::GetClientRect($hwnd, [ref]$r) | Out-Null
 $w = $r.Right; $h = $r.Bottom
-$root = "F:\SteamLibrary\steamapps\common\Sprocket\BepInEx"
+$root = [IO.Path]::GetFullPath("$PSScriptRoot\..\..\..\BepInEx")
 [IO.File]::WriteAllLines("$root\sprocketmods_commands.txt", @("hitcam $Replay"), (New-Object Text.UTF8Encoding $false))
 Start-Sleep -Milliseconds ([int]($Delay * 1000) + 150)
 $cx = [int]($w * $Left); $cw = [int]($w * $Right) - $cx; $ch = [int]($h * $Height); $cy = [int]($h * $Top)

@@ -62,15 +62,15 @@ internal sealed class DebugConsole
         if (!Cfg.Commands.Value)
             return;
         // 倍速（一時停止中は 0 なのでそのまま）
-        if (!Mathf.Approximately(_timeScale, 1f) && Time.timeScale > 0f && !Mathf.Approximately(Time.timeScale, _timeScale)
+        if (!Mathf.Approximately(_timeScale, 1f) && Core.Fast.TimeScale > 0f && !Mathf.Approximately(Time.timeScale, _timeScale)
             && !Design.SandboxSpawner.Selecting)
             Time.timeScale = _timeScale;
         if (_spectate)
             KeepHidden();
         UpdateBattle();
-        if (Time.unscaledTime < _nextPoll)
+        if (Core.Fast.Unscaled < _nextPoll)
             return;
-        _nextPoll = Time.unscaledTime + 0.25f;
+        _nextPoll = Core.Fast.Unscaled + 0.25f;
         if (!File.Exists(_commandPath))
             return;
         string[] lines;
@@ -127,7 +127,7 @@ internal sealed class DebugConsole
             case "help":
                 Write("commands: scene | ui | click <label> | timescale <x> | spectate on|off | status | " +
                       "config <section> <key> <value> | restart | series <n> | limit <seconds> | stop | screenshot <name> | " +
-                      "hitcam probe|replay [pen|nonpen|ricochet]|kill|all on|off | quit");
+                      "hitcam probe|replay [pen|nonpen|ricochet]|kill|all on|off | minimap png | tracks | perf on|off|reset|report|uncap | quit");
                 break;
             case "scene":
                 Write($"scene={SceneManager.GetActiveScene().name} mode={GameModeName()} timescale={Time.timeScale:0.##} spectate={_spectate}");
@@ -181,6 +181,49 @@ internal sealed class DebugConsole
                 break;
             case "ammo":
                 AmmoCommand(parts);
+                break;
+            case "perf":
+                switch (parts.Length >= 2 ? parts[1].ToLowerInvariant() : "report")
+                {
+                    case "on":
+                        Perf.Start();
+                        Write("perf on");
+                        break;
+                    case "off":
+                        Perf.Stop();
+                        Write("perf off");
+                        break;
+                    case "reset":
+                        Perf.Reset();
+                        Write("perf reset");
+                        break;
+                    case "gcslice":
+                        if (parts.Length > 2 && float.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sliceMs))
+                            UnityEngine.Scripting.GarbageCollector.incrementalTimeSliceNanoseconds = (ulong)(sliceMs * 1e6);
+                        Write($"gc slice {UnityEngine.Scripting.GarbageCollector.incrementalTimeSliceNanoseconds / 1e6:0.0} ms, incremental {UnityEngine.Scripting.GarbageCollector.isIncremental}");
+                        break;
+                    case "game":
+                        foreach (var gameLine in GameProbe.Report())
+                            Write(gameLine);
+                        break;
+                    case "boxtest":
+                        foreach (var boxLine in Perf.BoxTest())
+                            Write(boxLine);
+                        break;
+                    case "uncap":
+                        // 計測のときだけ: 垂直同期と fps の上限を外して、余裕がフレームの時間に出るようにする
+                        QualitySettings.vSyncCount = 0;
+                        Application.targetFrameRate = -1;
+                        Write("perf uncap: vsync off, no frame cap");
+                        break;
+                    default:
+                        foreach (var perfLine in Perf.Report())
+                            Write(perfLine);
+                        break;
+                }
+                break;
+            case "minimap":
+                Write(Map.MapTerrain.SaveDebugImage());
                 break;
             case "tracks":
                 foreach (var trackLine in Tracks.TrackDamage.Describe())
@@ -436,7 +479,7 @@ internal sealed class DebugConsole
             return;
         if (!float.IsNaN(_restartAt))
         {
-            if (Time.unscaledTime >= _restartAt)
+            if (Core.Fast.Unscaled >= _restartAt)
             {
                 _restartAt = float.NaN;
                 Restart();
@@ -472,7 +515,7 @@ internal sealed class DebugConsole
         WriteStatus("final");
         _seriesLeft--;
         if (_seriesLeft > 0)
-            _restartAt = Time.unscaledTime + 3f;
+            _restartAt = Core.Fast.Unscaled + 3f;
         else
             Write("series finished");
     }

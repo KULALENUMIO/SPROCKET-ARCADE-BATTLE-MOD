@@ -41,26 +41,35 @@ internal sealed class HudView
     private bool _reticleVisible = true;
     private bool _hasSmoothed;
     private Vector2 _smoothed;
+    private bool _rootActive;
+    private Core.Fast.Projector _projector;
+    private float _lastFrameTime = -1f;
+
+    // 文字の大きさの覚え（preferredWidth / Height は読むたびに文字の配置を計算し、値も箱詰めされる）
+    private readonly Dictionary<IntPtr, (string Text, float Size, float Width, float Height)> _textSize = new();
 
     public void SetActive(bool active)
     {
-        if (_root != null && _root.activeSelf != active)
-        {
-            _root.SetActive(active);
-            if (!active)
-                _hasSmoothed = false;
-        }
+        if (!Core.Fast.Alive(_root) || _rootActive == active)
+            return;
+        _rootActive = active;
+        _root.SetActive(active);
+        if (!active)
+            _hasSmoothed = false;
     }
 
     public bool Ensure()
     {
-        if (_root != null && _root.WasCollected)
+        if (_root is not null && !Core.Fast.Alive(_root))
             _root = null;
-        if (_root == null)
+        if (_root is null)
+        {
             Create();
-        if (!_fontResolved && Time.unscaledTime >= _nextFontSearch)
+            _rootActive = Core.Fast.Alive(_root) && _root.activeSelf;
+        }
+        if (!_fontResolved && Core.Fast.Unscaled >= _nextFontSearch)
             ResolveFont();
-        return _root != null;
+        return _root is not null;
     }
 
     private void Create()
@@ -173,7 +182,7 @@ internal sealed class HudView
     /// <summary>ゲーム内で使われている TMP フォントを借りる。</summary>
     private void ResolveFont()
     {
-        _nextFontSearch = Time.unscaledTime + 1f;
+        _nextFontSearch = Core.Fast.Unscaled + 1f;
         TMP_FontAsset font = null;
         try
         {
@@ -203,28 +212,33 @@ internal sealed class HudView
     private Image CreatePlate(string name)
     {
         var plate = HudStyle.CreateImage(_root.transform, name, true);
-        plate.gameObject.SetActive(false);
+        HudStyle.SetActive(plate, false);
         return plate;
     }
 
     /// <summary>文字の大きさに合わせて後ろの板を置く。pivot は文字の RectTransform と同じ。</summary>
-    private static void PlacePlate(Image plate, TextMeshProUGUI label, Vector2 anchor, Vector2 pivot)
+    private void PlacePlate(Image plate, TextMeshProUGUI label, string text, float fontSize, Vector2 anchor, float pivotX, float pivotY)
     {
-        var visible = label != null && label.gameObject.activeSelf && Plugin.Style.PanelOpacity.Value > 0f;
+        var visible = HudStyle.IsActive(label) && Plugin.Style.PanelOpacity.Value > 0f;
         HudStyle.SetActive(plate, visible);
         if (!visible)
             return;
-        var scale = Screen.height / 1080f;
-        var padX = label.fontSize * 0.45f;
-        var padY = label.fontSize * 0.15f;
-        var size = new Vector2(label.preferredWidth + padX * 2f, label.preferredHeight + padY * 2f);
+        var scale = Core.Fast.ScreenHeight / 1080f;
+        var padX = fontSize * 0.45f;
+        var padY = fontSize * 0.15f;
+        if (!_textSize.TryGetValue(label.Pointer, out var measured) || measured.Text != text || measured.Size != fontSize)
+        {
+            measured = (text, fontSize, label.preferredWidth, label.preferredHeight);
+            _textSize[label.Pointer] = measured;
+        }
         // 文字の揃え位置（pivot）に合わせて板の左下を求める
-        var origin = anchor - Vector2.Scale(new Vector2(label.preferredWidth, label.preferredHeight), pivot) - new Vector2(padX, padY);
+        var originX = anchor.x - measured.Width * pivotX - padX;
+        var originY = anchor.y - measured.Height * pivotY - padY;
         HudStyle.StylePanel(plate, scale);
-        var c = plate.color;
+        var c = HudStyle.PanelColor;
         c.a *= 0.85f;
         plate.color = c;
-        HudStyle.Place(plate, origin.x, origin.y, size.x, size.y);
+        HudStyle.Place(plate, originX, originY, measured.Width + padX * 2f, measured.Height + padY * 2f);
     }
 
     private TextMeshProUGUI CreateText(string name, TMP_FontAsset font, TextAlignmentOptions alignment, Vector2 pivot)
@@ -259,43 +273,57 @@ internal sealed class HudView
     public void ShowCrosshair(Camera camera, Vector3 worldPoint, Color color, string distance, string verdict)
     {
         var cfg = Plugin.Cfg;
-        var s = camera.WorldToScreenPoint(worldPoint);
+        _projector.Set(camera);
+        var s = _projector.Screen(worldPoint);
         if (s.z <= 0.05f)
         {
             HideCrosshair();
             return;
         }
 
-        var target = new Vector2(s.x, s.y);
+        // 1 フレームの長さ（Time.unscaledDeltaTime は箱詰めされるので、前のフレームの時刻との差）
+        var now = Core.Fast.Unscaled;
+        var dt = _lastFrameTime >= 0f ? Math.Clamp(now - _lastFrameTime, 0f, 0.25f) : 0f;
+        _lastFrameTime = now;
+        var target = Core.Fast.V2(s.x, s.y);
         var tau = cfg.ReticleSmoothing.Value;
-        if (!_hasSmoothed || tau <= 0f || (target - _smoothed).sqrMagnitude > 250f * 250f)
+        var dx = target.x - _smoothed.x;
+        var dy = target.y - _smoothed.y;
+        if (!_hasSmoothed || tau <= 0f || dx * dx + dy * dy > 250f * 250f)
             _smoothed = target;
         else
-            _smoothed = Vector2.Lerp(_smoothed, target, 1f - Mathf.Exp(-Time.unscaledDeltaTime / tau));
+        {
+            var k = 1f - MathF.Exp(-dt / tau);
+            _smoothed = Core.Fast.V2(_smoothed.x + dx * k, _smoothed.y + dy * k);
+        }
         _hasSmoothed = true;
         var p = _smoothed;
 
         var size = cfg.ReticleSize.Value;
-        var shadow = new Color(0f, 0f, 0f, 0.55f * color.a);
+        var shadow = Core.Fast.Rgba(0f, 0f, 0f, 0.55f * color.a);
         Place(_ringShadow, p, size, shadow);
         Place(_ring, p, size, color);
-        var dotSize = Mathf.Max(8f, size * 0.32f);
+        var dotSize = MathF.Max(8f, size * 0.32f);
         Place(_dotShadow, p, dotSize, shadow);
         Place(_dot, p, dotSize, color);
         SetReticleVisible(true);
 
         var fontSize = cfg.FontSize.Value;
-        if (_distance != null)
+        if (_distance is not null)
         {
-            SetText(_distance, cfg.ShowDistance.Value ? distance : null, color, fontSize);
-            _distance.rectTransform.anchoredPosition = p + new Vector2(size * 0.5f + 10f, 0f);
-            PlacePlate(_distancePlate, _distance, _distance.rectTransform.anchoredPosition, new Vector2(0f, 0.5f));
+            var text = cfg.ShowDistance.Value ? distance : null;
+            SetText(_distance, text, color, fontSize);
+            var anchor = Core.Fast.V2(p.x + size * 0.5f + 10f, p.y);
+            _distance.rectTransform.anchoredPosition = anchor;
+            PlacePlate(_distancePlate, _distance, text, fontSize, anchor, 0f, 0.5f);
         }
-        if (_verdict != null)
+        if (_verdict is not null)
         {
-            SetText(_verdict, cfg.ShowVerdictText.Value ? verdict : null, color, fontSize);
-            _verdict.rectTransform.anchoredPosition = p + new Vector2(0f, -size * 0.5f - 8f);
-            PlacePlate(_verdictPlate, _verdict, _verdict.rectTransform.anchoredPosition, new Vector2(0.5f, 1f));
+            var text = cfg.ShowVerdictText.Value ? verdict : null;
+            SetText(_verdict, text, color, fontSize);
+            var anchor = Core.Fast.V2(p.x, p.y - size * 0.5f - 8f);
+            _verdict.rectTransform.anchoredPosition = anchor;
+            PlacePlate(_verdictPlate, _verdict, text, fontSize, anchor, 0.5f, 1f);
         }
     }
 
@@ -309,7 +337,7 @@ internal sealed class HudView
     {
         var rt = image.rectTransform;
         rt.anchoredPosition = position;
-        rt.sizeDelta = new Vector2(size, size);
+        rt.sizeDelta = Core.Fast.V2(size, size);
         image.color = color;
     }
 
@@ -318,14 +346,14 @@ internal sealed class HudView
         if (_reticleVisible == visible)
             return;
         _reticleVisible = visible;
-        _ringShadow.gameObject.SetActive(visible);
-        _ring.gameObject.SetActive(visible);
-        _dotShadow.gameObject.SetActive(visible);
-        _dot.gameObject.SetActive(visible);
-        if (_distance != null)
-            _distance.gameObject.SetActive(visible);
-        if (_verdict != null)
-            _verdict.gameObject.SetActive(visible);
+        HudStyle.SetActive(_ringShadow, visible);
+        HudStyle.SetActive(_ring, visible);
+        HudStyle.SetActive(_dotShadow, visible);
+        HudStyle.SetActive(_dot, visible);
+        if (_distance is not null)
+            HudStyle.SetActive(_distance, visible);
+        if (_verdict is not null)
+            HudStyle.SetActive(_verdict, visible);
         if (!visible)
         {
             HudStyle.SetActive(_distancePlate, false);
@@ -336,13 +364,13 @@ internal sealed class HudView
     private static void SetText(TextMeshProUGUI label, string text, Color color, float fontSize)
     {
         var visible = !string.IsNullOrEmpty(text);
-        if (label.gameObject.activeSelf != visible)
-            label.gameObject.SetActive(visible);
+        if (HudStyle.IsActive(label) != visible)
+            HudStyle.SetActive(label, visible);
         if (!visible)
             return;
-        label.fontSize = fontSize;
+        HudStyle.SetFontSize(label, fontSize);
         label.color = color;
-        label.text = text;
+        HudStyle.SetText(label, text);
     }
 
     // ---------------------------------------------------------------- trajectory (任意)
@@ -354,13 +382,14 @@ internal sealed class HudView
         var width = cfg.TrajectoryWidth.Value;
 
         _screen.Clear();
+        _projector.Set(camera);
         if (points.Count >= 2)
         {
-            var stride = Mathf.Max(1, Mathf.CeilToInt((points.Count - 1) / (float)maxSegments));
+            var stride = Math.Max(1, (int)MathF.Ceiling((points.Count - 1) / (float)maxSegments));
             for (var i = 0; i < points.Count; i += stride)
-                _screen.Add(camera.WorldToScreenPoint(points[i]));
+                _screen.Add(_projector.Screen(points[i]));
             if ((points.Count - 1) % stride != 0)
-                _screen.Add(camera.WorldToScreenPoint(points[points.Count - 1]));
+                _screen.Add(_projector.Screen(points[points.Count - 1]));
         }
 
         var used = 0;
@@ -370,16 +399,17 @@ internal sealed class HudView
             var b = _screen[i + 1];
             if (a.z <= 0.05f || b.z <= 0.05f)
                 continue;
-            var delta = new Vector2(b.x - a.x, b.y - a.y);
-            var length = delta.magnitude;
+            var deltaX = b.x - a.x;
+            var deltaY = b.y - a.y;
+            var length = MathF.Sqrt(deltaX * deltaX + deltaY * deltaY);
             if (length < 0.5f)
                 continue;
 
             var segment = GetSegment(used++);
             var rt = segment.rectTransform;
-            rt.anchoredPosition = new Vector2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
-            rt.sizeDelta = new Vector2(length + width * 0.5f, width);
-            rt.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
+            rt.anchoredPosition = Core.Fast.V2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+            rt.sizeDelta = Core.Fast.V2(length + width * 0.5f, width);
+            rt.localRotation = Core.Fast.RotZ(MathF.Atan2(deltaY, deltaX) * (180f / MathF.PI));
             segment.color = color;
         }
         SetActiveSegments(used);
@@ -392,7 +422,7 @@ internal sealed class HudView
         while (_segments.Count <= index)
         {
             var image = CreateImage($"Trajectory{_segments.Count}", null);
-            image.gameObject.SetActive(false);
+            HudStyle.SetActive(image, false);
             image.transform.SetAsFirstSibling(); // クロスヘアより奥に描く
             _segments.Add(image);
         }
@@ -402,9 +432,9 @@ internal sealed class HudView
     private void SetActiveSegments(int count)
     {
         for (var i = count; i < _activeSegments; i++)
-            _segments[i].gameObject.SetActive(false);
+            HudStyle.SetActive(_segments[i], false);
         for (var i = _activeSegments; i < count; i++)
-            _segments[i].gameObject.SetActive(true);
+            HudStyle.SetActive(_segments[i], true);
         _activeSegments = count;
     }
 }

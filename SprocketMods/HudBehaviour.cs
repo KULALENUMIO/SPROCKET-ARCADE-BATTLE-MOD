@@ -54,42 +54,103 @@ public class HudBehaviour : MonoBehaviour
 
     private void Update()
     {
+        Core.Fast.Tick();
         var localization = Localization.LocalizationManager.Instance;
         if (localization != null)
         {
             if (!_localizationStarted)
             {
                 _localizationStarted = true;
-                localization.Reload();
+                {
+                    var perf = Debug.Perf.Begin();
+                    localization.Reload();
+                    Debug.Perf.End("Localization.Reload", perf);
+                }
             }
-            localization.Update();
+            {
+                var perf = Debug.Perf.Begin();
+                localization.Update();
+                Debug.Perf.End("Localization.Update", perf);
+            }
         }
-        _controller.Update();
-        _arcade.Update();
-        _killTracker.Update();
-        _hitTracker.Update();
-        _hitCamTracker.Update();
-        _targetInfo.Update();
-        _teamStrength.Update();
-        _repair.Update();
+        {
+            var perf = Debug.Perf.Begin();
+            _controller.Update();
+            Debug.Perf.End("Controller.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _arcade.Update();
+            Debug.Perf.End("Arcade.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _killTracker.Update();
+            Debug.Perf.End("KillTracker.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _hitTracker.Update();
+            Debug.Perf.End("HitTracker.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _hitCamTracker.Update();
+            Debug.Perf.End("HitCamTracker.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _targetInfo.Update();
+            Debug.Perf.End("TargetInfo.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _teamStrength.Update();
+            Debug.Perf.End("TeamStrength.Update", perf);
+        }
+        {
+            var perf = Debug.Perf.Begin();
+            _repair.Update();
+            Debug.Perf.End("Repair.Update", perf);
+        }
         try
         {
-            _ammo.Update();
+            {
+                var perf = Debug.Perf.Begin();
+                _ammo.Update();
+                Debug.Perf.End("Ammo.Update", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextAmmoErrorLog)
+            if (Core.Fast.Unscaled >= _nextAmmoErrorLog)
             {
-                _nextAmmoErrorLog = Time.unscaledTime + 5f;
+                _nextAmmoErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Ammo failed: {e}");
             }
         }
-        _aiDirector.Update();
+        {
+            var perf = Debug.Perf.Begin();
+            _aiDirector.Update();
+            Debug.Perf.End("AiDirector.Update", perf);
+        }
         try
         {
-            Design.CylinderTurret.Update();
-            _sandboxSpawner.Update();
-            _debugConsole.Update();
+            {
+                var perf = Debug.Perf.Begin();
+                Design.CylinderTurret.Update();
+                Debug.Perf.End("Design.CylinderTurret.Update", perf);
+            }
+            {
+                var perf = Debug.Perf.Begin();
+                _sandboxSpawner.Update();
+                Debug.Perf.End("SandboxSpawner.Update", perf);
+            }
+            {
+                var perf = Debug.Perf.Begin();
+                _debugConsole.Update();
+                Debug.Perf.End("DebugConsole.Update", perf);
+            }
         }
         catch (Exception e)
         {
@@ -97,7 +158,11 @@ public class HudBehaviour : MonoBehaviour
         }
         try
         {
-            Weapons.AutocannonMuzzle.Update();
+            {
+                var perf = Debug.Perf.Begin();
+                Weapons.AutocannonMuzzle.Update();
+                Debug.Perf.End("Weapons.AutocannonMuzzle.Update", perf);
+            }
         }
         catch (Exception e)
         {
@@ -105,13 +170,17 @@ public class HudBehaviour : MonoBehaviour
         }
         try
         {
-            _camera.Update();
+            {
+                var perf = Debug.Perf.Begin();
+                _camera.Update();
+                Debug.Perf.End("Camera.Update", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextCameraErrorLog)
+            if (Core.Fast.Unscaled >= _nextCameraErrorLog)
             {
-                _nextCameraErrorLog = Time.unscaledTime + 5f;
+                _nextCameraErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Camera update failed: {e}");
             }
         }
@@ -121,132 +190,189 @@ public class HudBehaviour : MonoBehaviour
 
     private void LateUpdate()
     {
-        _controller.LateUpdate();
+        {
+            var perf = Debug.Perf.Begin();
+            _controller.LateUpdate();
+            Debug.Perf.End("Controller.LateUpdate", perf);
+        }
         try
         {
-            _autocannonHud.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _autocannonHud.LateUpdate();
+                Debug.Perf.End("AutocannonHud.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextAutocannonHudErrorLog)
+            if (Core.Fast.Unscaled >= _nextAutocannonHudErrorLog)
             {
-                _nextAutocannonHudErrorLog = Time.unscaledTime + 5f;
+                _nextAutocannonHudErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Autocannon HUD failed: {e}");
             }
         }
         try
         {
-            _killFeed.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _killFeed.LateUpdate();
+                Debug.Perf.End("KillFeed.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextKillFeedErrorLog)
+            if (Core.Fast.Unscaled >= _nextKillFeedErrorLog)
             {
-                _nextKillFeedErrorLog = Time.unscaledTime + 5f;
+                _nextKillFeedErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Kill feed view failed: {e}");
             }
         }
         try
         {
-            _hitReport.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _hitReport.LateUpdate();
+                Debug.Perf.End("HitReport.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextHitReportErrorLog)
+            if (Core.Fast.Unscaled >= _nextHitReportErrorLog)
             {
-                _nextHitReportErrorLog = Time.unscaledTime + 5f;
+                _nextHitReportErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Hit report view failed: {e}");
             }
         }
-        _hitCam.LateUpdate();
+        {
+            var perf = Debug.Perf.Begin();
+            _hitCam.LateUpdate();
+            Debug.Perf.End("HitCam.LateUpdate", perf);
+        }
         try
         {
-            _deathScreen.LateUpdate();
-            _ammoView.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _deathScreen.LateUpdate();
+                Debug.Perf.End("DeathScreen.LateUpdate", perf);
+            }
+            {
+                var perf = Debug.Perf.Begin();
+                _ammoView.LateUpdate();
+                Debug.Perf.End("AmmoView.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextAmmoErrorLog)
+            if (Core.Fast.Unscaled >= _nextAmmoErrorLog)
             {
-                _nextAmmoErrorLog = Time.unscaledTime + 5f;
+                _nextAmmoErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Ammo view failed: {e}");
             }
         }
-        _damageIndicator.Update();
+        {
+            var perf = Debug.Perf.Begin();
+            _damageIndicator.Update();
+            Debug.Perf.End("DamageIndicator.Update", perf);
+        }
         try
         {
-            _repairView.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _repairView.LateUpdate();
+                Debug.Perf.End("RepairView.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextRepairViewErrorLog)
+            if (Core.Fast.Unscaled >= _nextRepairViewErrorLog)
             {
-                _nextRepairViewErrorLog = Time.unscaledTime + 5f;
+                _nextRepairViewErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Repair view failed: {e}");
             }
         }
         try
         {
-            _minimap.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _minimap.LateUpdate();
+                Debug.Perf.End("Minimap.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextMinimapErrorLog)
+            if (Core.Fast.Unscaled >= _nextMinimapErrorLog)
             {
-                _nextMinimapErrorLog = Time.unscaledTime + 5f;
+                _nextMinimapErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Minimap failed: {e}");
             }
         }
         try
         {
-            _teamBar.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _teamBar.LateUpdate();
+                Debug.Perf.End("TeamBar.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextTeamBarErrorLog)
+            if (Core.Fast.Unscaled >= _nextTeamBarErrorLog)
             {
-                _nextTeamBarErrorLog = Time.unscaledTime + 5f;
+                _nextTeamBarErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Team bar view failed: {e}");
             }
         }
         try
         {
-            _targetInfoView.LateUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _targetInfoView.LateUpdate();
+                Debug.Perf.End("TargetInfoView.LateUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextTargetInfoErrorLog)
+            if (Core.Fast.Unscaled >= _nextTargetInfoErrorLog)
             {
-                _nextTargetInfoErrorLog = Time.unscaledTime + 5f;
+                _nextTargetInfoErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Target info view failed: {e}");
             }
         }
+        Debug.Perf.Frame();
     }
 
     private void FixedUpdate()
     {
         try
         {
-            _arcade.FixedUpdate();
+            {
+                var perf = Debug.Perf.Begin();
+                _arcade.FixedUpdate();
+                Debug.Perf.End("Arcade.FixedUpdate", perf);
+            }
         }
         catch (Exception e)
         {
             _arcadeErrors++;
-            if (Time.unscaledTime >= _nextArcadeErrorLog)
+            if (Core.Fast.Unscaled >= _nextArcadeErrorLog)
             {
-                _nextArcadeErrorLog = Time.unscaledTime + 5f;
+                _nextArcadeErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Arcade update failed ({_arcadeErrors} errors so far): {e}");
             }
         }
         try
         {
-            _repair.FixedUpdate(); // Arcade の後（修理中は止める方を優先）
+            { // Arcade の後（修理中は止める方を優先）
+                var perf = Debug.Perf.Begin();
+                _repair.FixedUpdate();
+                Debug.Perf.End("Repair.FixedUpdate", perf);
+            }
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextRepairViewErrorLog)
+            if (Core.Fast.Unscaled >= _nextRepairViewErrorLog)
             {
-                _nextRepairViewErrorLog = Time.unscaledTime + 5f;
+                _nextRepairViewErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Repair hold failed: {e}");
             }
         }
@@ -286,9 +412,9 @@ internal sealed class HudController
         catch (Exception e)
         {
             _errors++;
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"HUD update failed ({_errors} errors so far): {e}");
             }
             _view?.SetActive(false);
@@ -307,8 +433,11 @@ internal sealed class HudController
         _view ??= new HudView();
 
         var cfg = Plugin.Cfg;
-        if (!cfg.Enabled.Value || Time.timeScale <= 0f
-            || !_access.TryGetWeaponState(out var weapon) || !(weapon.MuzzleVelocity > 0f))
+        var perf = Debug.Perf.Begin();
+        WeaponState weapon = default;
+        var gotWeapon = cfg.Enabled.Value && Core.Fast.TimeScale > 0f && _access.TryGetWeaponState(out weapon);
+        Debug.Perf.End("HUD/Access", perf);
+        if (!gotWeapon || !(weapon.MuzzleVelocity > 0f))
         {
             _view.SetActive(false);
             return;
@@ -317,10 +446,15 @@ internal sealed class HudController
             return;
         _view.SetActive(true);
 
+        perf = Debug.Perf.Begin();
         _solver.Solve(weapon, cfg.MaxFlightTime.Value);
+        Debug.Perf.End("HUD/Solve", perf);
         var impact = _solver.Impact;
+        perf = Debug.Perf.Begin();
         var probe = _probe.Evaluate(weapon, impact);
+        Debug.Perf.End("HUD/Probe", perf);
         var camera = weapon.Camera;
+        perf = Debug.Perf.Begin();
 
         if (cfg.ShowTrajectory.Value)
             _view.ShowTrajectory(camera, _solver.Points, cfg.TrajectoryColor.Value);
@@ -333,6 +467,7 @@ internal sealed class HudController
             ? ">" + distance.ToString("0") + " m"
             : distance.ToString("0") + " m";
         _view.ShowCrosshair(camera, impact.Point, GetColor(probe), distanceText, BuildVerdict(impact, probe));
+        Debug.Perf.End("HUD/View", perf);
     }
 
     private Color GetColor(in ProbeResult probe)

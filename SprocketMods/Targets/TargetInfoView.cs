@@ -52,8 +52,8 @@ internal sealed class TargetInfoView
         var data = cfg.Enabled.Value ? tracker?.Current : null;
         if (data != null && !cfg.ShowWrecks.Value && data.State == TargetState.KnockedOut)
             data = null;
-        var alpha = data == null ? 0f : Mathf.Clamp01(1f - (Time.unscaledTime - tracker.LastSeen - 0.15f) / FadeTime);
-        if (alpha <= 0f || Time.timeScale <= 0f || !Ensure())
+        var alpha = data == null ? 0f : Mathf.Clamp01(1f - (Core.Fast.Unscaled - tracker.LastSeen - 0.15f) / FadeTime);
+        if (alpha <= 0f || Core.Fast.TimeScale <= 0f || !Ensure())
         {
             SetActive(false);
             return;
@@ -89,7 +89,7 @@ internal sealed class TargetInfoView
         };
         _accentHex = wreck ? HudStyle.Grey : sideHex;
 
-        _tag.text = "<b><color=#" + sideHex + ">" + T(sideText) + "</color></b>";
+        HudStyle.SetText(_tag, "<b><color=#" + sideHex + ">" + T(sideText) + "</color></b>");
         _hasName = cfg.ShowName.Value;
         HudStyle.SetActive(_name, _hasName);
         if (_hasName)
@@ -116,7 +116,7 @@ internal sealed class TargetInfoView
             _sb.Append("<size=85%><color=#").Append(HudStyle.Grey).Append('>').Append(Mathf.RoundToInt(data.Distance)).Append(" m</color></size>");
             _statusLines++;
         }
-        _status.text = _sb.ToString();
+        HudStyle.SetText(_status, _sb.ToString());
         HudStyle.SetActive(_status, _statusLines > 0);
 
         // 行: 乗員、エンジン（常に）、ほかのモジュール（損傷しているときだけ）
@@ -162,7 +162,7 @@ internal sealed class TargetInfoView
             _sb.Append("<color=#").Append(HudStyle.Yellow).Append('>').Append(T("wounded")).Append(' ').Append(d.CrewWounded).Append("</color>");
         }
         _hasNote = _sb.Length > 0;
-        _note.text = _sb.ToString();
+        HudStyle.SetText(_note, _sb.ToString());
         HudStyle.SetActive(_note, _hasNote);
     }
 
@@ -214,11 +214,11 @@ internal sealed class TargetInfoView
         var x = left + pad + accentWidth;
         var y = top - pad;
         var statusWidth = font * 6.5f;
-        _tag.fontSize = font * 0.85f;
+        HudStyle.SetFontSize(_tag, font * 0.85f);
         HudStyle.Place(_tag, x, y - tagHeight, _statusLines > 0 ? inner - statusWidth : inner, tagHeight);
-        _name.fontSize = font * 1.2f;
+        HudStyle.SetFontSize(_name, font * 1.2f);
         HudStyle.Place(_name, x, y - headerHeight, inner - font * 5f, nameHeight);
-        _status.fontSize = font;
+        HudStyle.SetFontSize(_status, font);
         HudStyle.Place(_status, x + inner - statusWidth, y - headerHeight, statusWidth, headerHeight);
         y -= headerHeight;
 
@@ -238,7 +238,7 @@ internal sealed class TargetInfoView
         }
         if (_hasNote)
         {
-            _note.fontSize = font * 0.9f;
+            HudStyle.SetFontSize(_note, font * 0.9f);
             HudStyle.Place(_note, x, y - noteHeight, inner, noteHeight);
         }
     }

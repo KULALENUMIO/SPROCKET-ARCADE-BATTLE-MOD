@@ -62,23 +62,38 @@ internal static class TrackDamage
         var links = TrackBeltSegmentArray.DamageModelParameters;
         var parameters = new DamageModelParameters(links.RhaFactor * Cfg.ArmourFactor.Value, links.SpallFactor, links.Density, links.Priority);
         var size = new Vector3(Mathf.Max(0.05f, belt.Width), Mathf.Max(0.01f, belt.Thickness), Mathf.Max(0.02f, belt.SegmentPitch) * 1.05f);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var matrix = belt.transform.localToWorldMatrix;
+        // リンクの位置は 1 回だけ読み、向きは C# の float で計算する（Vector3 / Quaternion の演算はゲーム側の呼び出しで遅い）
+        var bx = new float[count];
+        var by = new float[count];
+        for (var i = 0; i < count; i++)
+        {
+            var point = points[i].Position;
+            bx[i] = point.x;
+            by[i] = point.y;
+        }
         var added = 0;
         for (var i = 0; i < count; i++)
         {
-            var position = Local(points[i].Position);
-            var tangent = Local(points[(i + 1) % count].Position) - Local(points[(i - 1 + count) % count].Position);
-            if (tangent.sqrMagnitude < 1e-8f)
+            // 帯の座標 (0, y, x)。前後のリンクを結ぶ向き（y-z 平面）を前、それと帯の横（x 軸）に直交する向きを上にした回転は、
+            // x 軸まわりの回転になる: 前 = (0, -sin θ, cos θ)
+            var next = (i + 1) % count;
+            var previous = (i - 1 + count) % count;
+            var fy = by[next] - by[previous];
+            var fz = bx[next] - bx[previous];
+            var length = MathF.Sqrt(fy * fy + fz * fz);
+            if (length < 1e-4f)
                 continue;
-            tangent.Normalize();
-            var up = Vector3.Cross(tangent, Vector3.right);
-            if (up.sqrMagnitude < 1e-6f)
-                up = Vector3.up;
-            builder.AddBox(id, ref matrix, entity, position, Quaternion.LookRotation(tangent, up), size, ref parameters);
+            var half = MathF.Atan2(-fy / length, fz / length) * 0.5f;
+            var rotation = new Quaternion { x = MathF.Sin(half), y = 0f, z = 0f, w = MathF.Cos(half) };
+            var position = new Vector3 { x = 0f, y = by[i], z = bx[i] };
+            builder.AddBox(id, ref matrix, entity, position, rotation, size, ref parameters);
             added++;
         }
-        if (_logged++ < 4)
-            Plugin.Logger.LogInfo($"Track damage: {track.name} belt boxes {added} size {size} rha {parameters.RhaFactor:0.###} " +
+        var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        if (_logged++ < 4 || Plugin.Cfg.DebugLog.Value && _logged < 40)
+            Plugin.Logger.LogInfo($"Track damage: {track.name} {ms:0.00} ms, belt boxes {added} size {size} rha {parameters.RhaFactor:0.###} " +
                                   $"density {parameters.Density:0.###} spall {parameters.SpallFactor:0.###} priority {parameters.Priority} vuid {id.Value} entity {entity}");
     }
 
@@ -149,5 +164,5 @@ internal static class TrackDamage
     }
 
     /// <summary>帯の平面の点を帯の Transform の座標にする（TrackBelt.ToLocalSpace と同じ）。</summary>
-    internal static Vector3 Local(Vector2 belt) => new(0f, belt.y, belt.x);
+    internal static Vector3 Local(Vector2 belt) => new() { x = 0f, y = belt.y, z = belt.x };
 }

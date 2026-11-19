@@ -144,9 +144,9 @@ internal sealed class GameAccess
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             var found = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>());
             _controller = found?.TryCast<VehicleController>();
         }

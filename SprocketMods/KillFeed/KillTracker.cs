@@ -265,7 +265,7 @@ internal sealed class KillTracker
 
     public void Update()
     {
-        if (!Cfg.Enabled.Value || Time.timeScale <= 0f)
+        if (!Cfg.Enabled.Value || Core.Fast.TimeScale <= 0f)
             return;
         try
         {
@@ -278,9 +278,9 @@ internal sealed class KillTracker
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Kill feed failed: {e}");
             }
         }
@@ -339,20 +339,11 @@ internal sealed class KillTracker
     private void ScanVehicles()
     {
         var now = Time.time;
-        if (Time.unscaledTime >= _nextVehicleSearch)
+        if (Core.Fast.Unscaled >= _nextVehicleSearch)
         {
-            _nextVehicleSearch = Time.unscaledTime + VehicleSearchInterval;
+            _nextVehicleSearch = Core.Fast.Unscaled + VehicleSearchInterval;
             _vehicles.Clear();
-            var found = Object.FindObjectsByType(Il2CppType.Of<VehicleBehaviour>(), FindObjectsSortMode.None);
-            if (found != null)
-            {
-                foreach (var obj in found)
-                {
-                    var vehicle = obj?.TryCast<VehicleBehaviour>();
-                    if (vehicle != null)
-                        _vehicles.Add(vehicle);
-                }
-            }
+            _vehicles.AddRange(Core.VehicleRegistry.Behaviours);
         }
 
         var running = IsMatchRunning();
@@ -529,9 +520,9 @@ internal sealed class KillTracker
     {
         if (_gameMode != null && _gameMode.WasCollected)
             _gameMode = null;
-        if (_gameMode == null && Time.unscaledTime >= _nextGameModeSearch)
+        if (_gameMode == null && Core.Fast.Unscaled >= _nextGameModeSearch)
         {
-            _nextGameModeSearch = Time.unscaledTime + 2f;
+            _nextGameModeSearch = Core.Fast.Unscaled + 2f;
             _gameMode = Object.FindAnyObjectByType(Il2CppType.Of<DeathmatchGameMode>())?.TryCast<DeathmatchGameMode>();
         }
         if (_gameMode == null)
@@ -578,9 +569,9 @@ internal sealed class KillTracker
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         var body = _controller?.ControlledVehicle?.Rigidbody;

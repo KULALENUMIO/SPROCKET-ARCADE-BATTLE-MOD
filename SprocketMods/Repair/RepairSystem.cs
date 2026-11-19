@@ -154,21 +154,22 @@ internal sealed unsafe class RepairSystem
             PlayerMode = RepairMode.Idle;
             return;
         }
-        if (Time.timeScale <= 0f)
+        if (Core.Fast.TimeScale <= 0f)
             return;
         try
         {
-            var now = Time.time;
-            if (Time.unscaledTime >= _nextSearch)
+            var now = Core.Fast.GameTime;
+            if (Core.Fast.Unscaled >= _nextSearch)
             {
-                _nextSearch = Time.unscaledTime + SearchInterval;
+                _nextSearch = Core.Fast.Unscaled + SearchInterval;
                 Search();
             }
-            var scan = Time.unscaledTime >= _nextScan;
+            var scan = Core.Fast.Unscaled >= _nextScan;
             if (scan)
-                _nextScan = Time.unscaledTime + ScanInterval;
+                _nextScan = Core.Fast.Unscaled + ScanInterval;
 
             var player = GetPlayerVehicle();
+            var playerPointer = Core.Fast.Alive(player) ? player.Pointer : IntPtr.Zero;
             PlayerDamaged = false;
             PlayerNoCrew = false;
             PlayerArmFraction = 0f;
@@ -177,9 +178,9 @@ internal sealed unsafe class RepairSystem
             {
                 var state = pair.Value;
                 var vehicle = state.Vehicle;
-                if (vehicle == null || vehicle.WasCollected)
+                if (!Core.Fast.Alive(vehicle))
                     continue;
-                var isPlayer = player != null && pair.Key == player.Pointer;
+                var isPlayer = playerPointer != IntPtr.Zero && pair.Key == playerPointer;
                 if (scan || isPlayer)
                     state.Damaged = HasRepairableDamage(vehicle);
                 if (!state.Damaged && state.Mode != RepairMode.Repairing)
@@ -211,9 +212,9 @@ internal sealed unsafe class RepairSystem
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Repair failed: {e}");
             }
         }
@@ -253,7 +254,7 @@ internal sealed unsafe class RepairSystem
             if (alive == 0)
                 Stop(state, "no crew");
             else if (Advance(state, required, Time.deltaTime))
-                PlayerCompletedAt = Time.unscaledTime;
+                PlayerCompletedAt = Core.Fast.Unscaled;
         }
         else if (_armTime > 0f)
         {
@@ -332,7 +333,8 @@ internal sealed unsafe class RepairSystem
             return;
         state.HeldBody = body;
         state.HoldPosition = body.position;
-        state.HoldYaw = body.rotation.eulerAngles.y;
+        var holdForward = Core.Fast.Forward(body.rotation);
+        state.HoldYaw = MathF.Atan2(holdForward.x, holdForward.z) * (180f / MathF.PI);
     }
 
     private static void Release(VehicleState state)
@@ -395,25 +397,33 @@ internal sealed unsafe class RepairSystem
         foreach (var state in _vehicles.Values)
         {
             var body = state.HeldBody;
-            if (state.Mode != RepairMode.Repairing || body == null)
+            if (state.Mode != RepairMode.Repairing || body is null)
                 continue;
-            if (body.WasCollected)
+            if (!Core.Fast.Alive(body))
             {
                 state.HeldBody = null;
                 continue;
             }
-            // 水平方向: 速度を捨て、ずれの分だけ戻す速度にする
-            var offset = state.HoldPosition - body.position;
-            offset.y = 0f;
-            var back = Vector3.ClampMagnitude(offset * (HoldStiffness / dt), HoldMaxSpeed);
+            // 水平方向: 速度を捨て、ずれの分だけ戻す速度にする（計算は C# で。値を返すゲームの呼び出しはごみが出る）
+            var position = body.position;
+            var offsetX = (state.HoldPosition.x - position.x) * (HoldStiffness / dt);
+            var offsetZ = (state.HoldPosition.z - position.z) * (HoldStiffness / dt);
+            var speed = MathF.Sqrt(offsetX * offsetX + offsetZ * offsetZ);
+            if (speed > HoldMaxSpeed)
+            {
+                offsetX *= HoldMaxSpeed / speed;
+                offsetZ *= HoldMaxSpeed / speed;
+            }
             var v = body.velocity;
-            body.velocity = new Vector3(back.x, v.y, back.z);
+            body.velocity = Core.Fast.V3(offsetX, v.y, offsetZ);
 
-            // 左右の回転: ヨーの角速度を捨て、向きのずれの分だけ戻す
-            var yawError = Mathf.DeltaAngle(body.rotation.eulerAngles.y, state.HoldYaw) * Mathf.Deg2Rad;
-            var yawRate = Mathf.Clamp(yawError * (HoldStiffness / dt), -HoldMaxYawRate, HoldMaxYawRate);
+            // 左右の回転: ヨーの角速度を捨て、向きのずれの分だけ戻す（今の向きは前向きの水平の角度）
+            var forward = Core.Fast.Forward(body.rotation);
+            var yaw = MathF.Atan2(forward.x, forward.z) * (180f / MathF.PI);
+            var yawError = DeltaAngle(yaw, state.HoldYaw) * (MathF.PI / 180f);
+            var yawRate = Math.Clamp(yawError * (HoldStiffness / dt), -HoldMaxYawRate, HoldMaxYawRate);
             var w = body.angularVelocity;
-            body.angularVelocity = new Vector3(w.x, yawRate, w.z);
+            body.angularVelocity = Core.Fast.V3(w.x, yawRate, w.z);
         }
     }
 
@@ -431,6 +441,17 @@ internal sealed unsafe class RepairSystem
     }
 
     /// <summary>修理時間。乗員が全滅していれば alive = 0。</summary>
+    /// <summary>Mathf.DeltaAngle と同じ（-180..180 度）。</summary>
+    private static float DeltaAngle(float current, float target)
+    {
+        var delta = (target - current) % 360f;
+        if (delta < 0f)
+            delta += 360f;
+        if (delta > 180f)
+            delta -= 360f;
+        return delta;
+    }
+
     private static float RequiredTime(VehicleBehaviour vehicle, VehicleState state, out int alive)
     {
         alive = CountCrew(vehicle, state, out var total);
@@ -719,13 +740,11 @@ internal sealed unsafe class RepairSystem
 
     private void Search()
     {
-        var now = Time.unscaledTime;
-        var found = Object.FindObjectsByType(Il2CppType.Of<VehicleBehaviour>(), FindObjectsSortMode.None);
-        if (found != null)
+        var now = Core.Fast.Unscaled;
+        var found = Core.VehicleRegistry.Behaviours;
         {
-            foreach (var obj in found)
+            foreach (var vehicle in found)
             {
-                var vehicle = obj?.TryCast<VehicleBehaviour>();
                 if (vehicle == null)
                     continue;
                 if (!_vehicles.TryGetValue(vehicle.Pointer, out var state))
@@ -753,9 +772,9 @@ internal sealed unsafe class RepairSystem
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         var player = _controller?.ControlledVehicle;
@@ -768,7 +787,7 @@ internal sealed unsafe class RepairSystem
             vehicle = body != null ? body.GetComponent<VehicleBehaviour>() ?? body.GetComponentInParent<VehicleBehaviour>() : null;
         }
         if (vehicle != null && !_vehicles.ContainsKey(vehicle.Pointer))
-            _vehicles[vehicle.Pointer] = new VehicleState { Vehicle = vehicle, Name = KillFeed.KillTracker.GetName(vehicle), LastSeen = Time.unscaledTime };
+            _vehicles[vehicle.Pointer] = new VehicleState { Vehicle = vehicle, Name = KillFeed.KillTracker.GetName(vehicle), LastSeen = Core.Fast.Unscaled };
         return vehicle;
     }
 }

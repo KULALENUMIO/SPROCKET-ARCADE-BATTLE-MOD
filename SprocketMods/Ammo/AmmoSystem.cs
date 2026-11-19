@@ -118,6 +118,17 @@ internal sealed unsafe class AmmoSystem
     private IntPtr _weaponPtr;
     private LoadState _lastState = LoadState.NeverLoaded;
 
+    // 砲ごとの弾の状態（砲を切り替えて戻ったときに、選んだ種類・装填済みの種類を元に戻す）。車両が変わったら捨てる
+    private sealed class GunState
+    {
+        public AmmoType Selected, Loaded, LoadingType;
+        public LoadState LastState;
+        public float LoadStart, LastDuration;
+    }
+
+    private readonly Dictionary<IntPtr, GunState> _guns = new();
+    private IntPtr _vehiclePtr;
+
     private sealed class Shot
     {
         public AmmoType Type;
@@ -164,24 +175,19 @@ internal sealed unsafe class AmmoSystem
         {
             HasGun = false;
             PlayerDead = false;
+            // 砲の切り替えの途中で砲が無いフレームがあっても、その砲の状態は覚えておく
+            SaveGun();
             _weapon = null;
             _weaponPtr = IntPtr.Zero;
             return;
         }
         var body = _controller.ControlledVehicle.Rigidbody;
-        PlayerDead = body != null && SprocketMods.KillFeed.KillTracker.Instance?.IsBodyKnockedOut(body.Pointer) == true;
+        PlayerDead = Core.Fast.Alive(body) && SprocketMods.KillFeed.KillTracker.Instance?.IsBodyKnockedOut(body.Pointer) == true;
         if (weapon.Pointer != _weaponPtr)
-        {
-            // 乗り換え・新しい試合: 徹甲弾から
-            _weapon = weapon;
-            _weaponPtr = weapon.Pointer;
-            Selected = Loaded = LoadingType = AmmoType.AP;
-            _lastState = weapon.LoadState;
-            _loadStart = _lastDuration = float.NaN;
-        }
+            SwitchGun(weapon, Core.Fast.Alive(body) ? body.Pointer : IntPtr.Zero);
         HasGun = true;
 
-        if (Time.timeScale > 0f && !PlayerDead)
+        if (Core.Fast.TimeScale > 0f && !PlayerDead)
         {
             if (SprocketMods.UI.KeyInput.Down(Cfg.KeyAP.Value))
                 Select(AmmoType.AP);
@@ -230,6 +236,50 @@ internal sealed unsafe class AmmoSystem
             _shots.Remove(id);
     }
 
+    /// <summary>
+    /// 操作する砲が変わった。同じ車両の砲の切り替えなら、今の砲の状態を覚え、切り替え先の砲の状態を戻す
+    /// （初めて使う砲は、今選んでいる種類を引き継ぎ、違う種類が装填されていればキーを押したときと同じく装填し直す）。
+    /// 乗り換え・新しい試合（車両が変わった）なら徹甲弾から。
+    /// </summary>
+    private void SwitchGun(WeaponBehaviour weapon, IntPtr vehicle)
+    {
+        var sameVehicle = vehicle != IntPtr.Zero && vehicle == _vehiclePtr;
+        if (sameVehicle)
+            SaveGun();
+        else
+            _guns.Clear();
+        var carried = sameVehicle ? Selected : AmmoType.AP;
+        _vehiclePtr = vehicle;
+        _weapon = weapon;
+        _weaponPtr = weapon.Pointer;
+        if (_guns.TryGetValue(_weaponPtr, out var saved))
+        {
+            Selected = saved.Selected;
+            Loaded = saved.Loaded;
+            LoadingType = saved.LoadingType;
+            _lastState = saved.LastState;
+            _loadStart = saved.LoadStart;
+            _lastDuration = saved.LastDuration;
+            return;
+        }
+        Selected = Loaded = LoadingType = AmmoType.AP;
+        _lastState = weapon.LoadState;
+        _loadStart = _lastDuration = float.NaN;
+        if (carried != AmmoType.AP)
+            Select(carried);
+    }
+
+    private void SaveGun()
+    {
+        if (_weaponPtr == IntPtr.Zero)
+            return;
+        _guns[_weaponPtr] = new GunState
+        {
+            Selected = Selected, Loaded = Loaded, LoadingType = LoadingType,
+            LastState = _lastState, LoadStart = _loadStart, LastDuration = _lastDuration,
+        };
+    }
+
     /// <summary>開発用（ammo select）。</summary>
     public void DebugSelect(AmmoType type) => Select(type);
 
@@ -262,7 +312,7 @@ internal sealed unsafe class AmmoSystem
     private void Select(AmmoType type)
     {
         Selected = type;
-        SelectedAt = Time.unscaledTime;
+        SelectedAt = Core.Fast.Unscaled;
         var weapon = _weapon;
         if (weapon == null || weapon.WasCollected)
             return;
@@ -295,9 +345,9 @@ internal sealed unsafe class AmmoSystem
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         if (_controller == null || _controller.ControlledVehicle == null || SprocketMods.Debug.DebugConsole.IsHidden(_controller.ControlledVehicle.Rigidbody))
@@ -780,16 +830,11 @@ internal sealed unsafe class AmmoSystem
 
     private void RefreshVehicles()
     {
-        if (Time.unscaledTime < _nextVehicleSearch)
-            return;
-        _nextVehicleSearch = Time.unscaledTime + 2f;
         _vehicles.Clear();
-        var found = Object.FindObjectsByType(Il2CppType.Of<Vehicle>(), FindObjectsSortMode.None);
-        for (var i = 0; found != null && i < found.Length; i++)
+        foreach (var entry in Core.VehicleRegistry.Entries)
         {
-            var vehicle = found[i]?.TryCast<Vehicle>();
-            if (vehicle != null)
-                _vehicles.Add(vehicle);
+            if (entry.Vehicle != null && !entry.Vehicle.WasCollected)
+                _vehicles.Add(entry.Vehicle);
         }
     }
 

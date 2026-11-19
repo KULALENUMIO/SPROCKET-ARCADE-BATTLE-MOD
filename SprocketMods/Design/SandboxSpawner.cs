@@ -75,7 +75,7 @@ internal sealed class SandboxSpawner
             Selecting = _spawning != null;
             return;
         }
-        if (Time.unscaledTime < _sweepUntil)
+        if (Core.Fast.Unscaled < _sweepUntil)
             SweepDeadEffects();
         if (_spawning != null)
         {
@@ -151,7 +151,7 @@ internal sealed class SandboxSpawner
         {
             foreach (var spawn in old)
                 Remove(spawn);
-            _sweepUntil = Time.unscaledTime + 2f;
+            _sweepUntil = Core.Fast.Unscaled + 2f;
         }
         _target.spawns = null;
         Plugin.Logger.LogInfo($"Spawn menu: spawning {blueprint.Header?.Name} x{count}");

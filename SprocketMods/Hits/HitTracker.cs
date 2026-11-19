@@ -250,7 +250,7 @@ internal sealed unsafe class HitTracker
 
     public void Update()
     {
-        if (!Cfg.Enabled.Value || Time.timeScale <= 0f)
+        if (!Cfg.Enabled.Value || Core.Fast.TimeScale <= 0f)
             return;
         if (!_killsSubscribed && KillFeed.KillTracker.Instance != null)
         {
@@ -285,9 +285,9 @@ internal sealed unsafe class HitTracker
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Hit report failed: {e}");
             }
         }
@@ -469,17 +469,15 @@ internal sealed unsafe class HitTracker
 
     private void RefreshVehicles()
     {
-        if (Time.unscaledTime < _nextVehicleSearch)
+        if (Core.Fast.Unscaled < _nextVehicleSearch)
             return;
-        _nextVehicleSearch = Time.unscaledTime + VehicleSearchInterval;
-        var found = Object.FindObjectsByType(Il2CppType.Of<VehicleBehaviour>(), FindObjectsSortMode.None);
+        _nextVehicleSearch = Core.Fast.Unscaled + VehicleSearchInterval;
+        var found = Core.VehicleRegistry.Behaviours;
         var seen = new HashSet<IntPtr>();
-        if (found != null)
         {
-            foreach (var obj in found)
+            foreach (var vehicle in found)
             {
-                var vehicle = obj?.TryCast<VehicleBehaviour>();
-                if (vehicle == null)
+                if (vehicle == null || vehicle.WasCollected)
                     continue;
                 seen.Add(vehicle.Pointer);
                 if (_byVehicle.ContainsKey(vehicle.Pointer))
@@ -512,9 +510,9 @@ internal sealed unsafe class HitTracker
 
     private void ReadHealth(VehicleHealth v)
     {
-        if (Time.unscaledTime >= v.NextEntriesRefresh)
+        if (Core.Fast.Unscaled >= v.NextEntriesRefresh)
         {
-            v.NextEntriesRefresh = Time.unscaledTime + EntriesRefreshInterval;
+            v.NextEntriesRefresh = Core.Fast.Unscaled + EntriesRefreshInterval;
             ReadEntries(v);
         }
         var n = v.Pools.Length;
@@ -596,9 +594,9 @@ internal sealed unsafe class HitTracker
             if (!_byVehicle.TryGetValue(vehicle.Pointer, out v))
                 return false;
         }
-        if (Time.unscaledTime >= v.NextEntriesRefresh)
+        if (Core.Fast.Unscaled >= v.NextEntriesRefresh)
         {
-            v.NextEntriesRefresh = Time.unscaledTime + EntriesRefreshInterval;
+            v.NextEntriesRefresh = Core.Fast.Unscaled + EntriesRefreshInterval;
             ReadEntries(v);
         }
 
@@ -849,9 +847,9 @@ internal sealed unsafe class HitTracker
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         var body = _controller?.ControlledVehicle?.Rigidbody;

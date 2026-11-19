@@ -78,7 +78,7 @@ internal sealed class KillFeedView
     {
         var line = new Line
         {
-            Born = Time.unscaledTime,
+            Born = Core.Fast.Unscaled,
             InvolvesPlayer = e.InvolvesPlayer,
             Y = float.NaN,
             AccentHex = e.InvolvesPlayer ? HudStyle.Gold : e.Kind == KillKind.Destroyed ? HudStyle.Red
@@ -94,7 +94,7 @@ internal sealed class KillFeedView
         line.Background = HudStyle.CreateImage(line.Root.transform, "Background", true);
         line.Accent = HudStyle.CreateImage(line.Root.transform, "Accent", true);
         var text = HudStyle.CreateText(line.Root.transform, "Text", TextAlignmentOptions.MidlineRight);
-        text.text = Compose(e);
+        HudStyle.SetText(text, Compose(e));
         line.Text = text;
 
         _lines.Insert(0, line);
@@ -159,7 +159,7 @@ internal sealed class KillFeedView
         var right = Screen.width - 24f * scale;
         // 右の中ほど: 右上のヒットカメラの下から始めて、画面の中央あたりに収める
         var top = cfg.Position.Value == KillFeedPosition.TopRight ? Screen.height - 24f * scale : Screen.height * 0.6f;
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         var duration = cfg.Duration.Value;
         var slide = Mathf.Clamp01(Time.unscaledDeltaTime / SlideTime);
 
@@ -181,7 +181,7 @@ internal sealed class KillFeedView
             var alpha = Mathf.Clamp01((cfg.Duration.Value - age) / FadeTime) * Mathf.Clamp01(age / 0.15f);
 
             var text = line.Text;
-            text.fontSize = fontSize;
+            HudStyle.SetFontSize(text, fontSize);
             text.alpha = alpha;
             var textWidth = text.preferredWidth;
             var width = textWidth + paddingX * 2f + accentWidth;

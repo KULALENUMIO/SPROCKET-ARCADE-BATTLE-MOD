@@ -110,9 +110,9 @@ internal sealed class DamageIndicator
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Damage indicator failed: {e}");
             }
         }
@@ -157,7 +157,7 @@ internal sealed class DamageIndicator
         var penetrated = (type & HitDamageModelProjectileEvent.HitType.Penetrated) != 0;
         if (!penetrated && !Cfg.ShowNonPenetrating.Value)
             return;
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         var player = GetPlayerBody();
         var origin = player != null ? player.position : source;
         if (Plugin.Cfg.DebugLog.Value)
@@ -195,7 +195,7 @@ internal sealed class DamageIndicator
 
     private void Draw(Rigidbody player)
     {
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         var duration = Cfg.Duration.Value;
         for (var i = _indicators.Count - 1; i >= 0; i--)
         {
@@ -203,7 +203,7 @@ internal sealed class DamageIndicator
                 Remove(i);
         }
         var camera = HitTracker.Instance?.ActiveCamera;
-        var visible = _indicators.Count > 0 && player != null && camera != null && Time.timeScale > 0f && Ensure();
+        var visible = _indicators.Count > 0 && player != null && camera != null && Core.Fast.TimeScale > 0f && Ensure();
         if (_root != null && !_root.WasCollected && _root.activeSelf != visible)
             _root.SetActive(visible);
         if (!visible)
@@ -246,7 +246,7 @@ internal sealed class DamageIndicator
         if (_pool.Count > 0)
         {
             var pooled = _pool.Pop();
-            pooled.gameObject.SetActive(true);
+            HudStyle.SetActive(pooled, true);
             return pooled;
         }
         var go = new GameObject("DamageArc");
@@ -266,7 +266,7 @@ internal sealed class DamageIndicator
         _indicators.RemoveAt(index);
         if (indicator.Image != null && !indicator.Image.WasCollected)
         {
-            indicator.Image.gameObject.SetActive(false);
+            HudStyle.SetActive(indicator.Image, false);
             _pool.Push(indicator.Image);
         }
     }
@@ -283,9 +283,9 @@ internal sealed class DamageIndicator
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         return _controller?.ControlledVehicle?.Rigidbody;

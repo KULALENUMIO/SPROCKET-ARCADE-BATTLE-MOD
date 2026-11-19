@@ -105,7 +105,7 @@ internal static unsafe class Autocannons
     {
         if (pointer == IntPtr.Zero)
             return null;
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         if (Entries.TryGetValue(pointer, out var entry) && now < entry.NextCheck)
             return entry.State;
 

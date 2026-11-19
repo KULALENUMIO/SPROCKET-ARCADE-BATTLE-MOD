@@ -148,13 +148,13 @@ internal static class CylinderTurret
     {
         _pendingEditor = editor;
         _pendingShape = _shape;
-        _applyAt = Time.unscaledTime + ApplyDelay;
+        _applyAt = Core.Fast.Unscaled + ApplyDelay;
     }
 
     /// <summary>反映待ちを処理する（HudBehaviour から毎フレーム）。</summary>
     public static void Update()
     {
-        if (float.IsNaN(_applyAt) || Time.unscaledTime < _applyAt)
+        if (float.IsNaN(_applyAt) || Core.Fast.Unscaled < _applyAt)
             return;
         _applyAt = float.NaN;
         var editor = _pendingEditor;
@@ -335,10 +335,10 @@ internal static class CylinderTurret
             var inner = reader.GetVertexPosition(Sides * 2 + 1);
             hole = new Vector2(inner.x, inner.z).magnitude;
         }
-        if (mesh.Pointer != _armourMesh || Time.unscaledTime >= _nextArmourRead)
+        if (mesh.Pointer != _armourMesh || Core.Fast.Unscaled >= _nextArmourRead)
         {
             _armourMesh = mesh.Pointer;
-            _nextArmourRead = Time.unscaledTime + 0.5f;
+            _nextArmourRead = Core.Fast.Unscaled + 0.5f;
             _armour = ReadArmour(mesh);
         }
         var armour = _armour;

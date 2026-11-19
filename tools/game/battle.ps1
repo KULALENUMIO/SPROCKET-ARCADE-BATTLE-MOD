@@ -4,7 +4,7 @@
 # 日本語のボタン名を含むので、このファイルは BOM 付き UTF-8 で保存する（Windows PowerShell 5.1 は BOM なしを Shift-JIS で読む）
 $s = $PSScriptRoot
 function Send($c, $w) { & "$s\send.ps1" -Commands $c -Wait $w }
-$log = "F:\SteamLibrary\steamapps\common\Sprocket\BepInEx\LogOutput.log"
+$log = Join-Path ([IO.Path]::GetFullPath("$PSScriptRoot\..\..\..\BepInEx")) "LogOutput.log"
 if (-not (Get-Process Sprocket -ErrorAction SilentlyContinue)) {
     Start-Process "steam://rungameid/1674170"
     Start-Sleep -Seconds 40

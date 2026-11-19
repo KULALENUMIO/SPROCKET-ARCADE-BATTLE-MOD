@@ -134,7 +134,7 @@ internal sealed unsafe class CameraZoom
     /// <summary>メニュー表示中（カーソルが出ている）・ポーズ中・味方への命令中は反応しない（右クリックは命令の取り消しと共用）。</summary>
     private static bool InputAllowed(Sprocket.Gameplay.VehicleControl.VehicleController vc)
     {
-        if (Time.timeScale <= 0f || Cursor.lockState != CursorLockMode.Locked)
+        if (Core.Fast.TimeScale <= 0f || Cursor.lockState != CursorLockMode.Locked)
             return false;
         return vc.currentOrderConstruction == null;
     }
@@ -143,9 +143,9 @@ internal sealed unsafe class CameraZoom
     {
         if (_state != null && _state.WasCollected)
             _state = null;
-        if (_state == null && Time.unscaledTime >= _nextStateSearch)
+        if (_state == null && Core.Fast.Unscaled >= _nextStateSearch)
         {
-            _nextStateSearch = Time.unscaledTime + 1f;
+            _nextStateSearch = Core.Fast.Unscaled + 1f;
             _state = Object.FindAnyObjectByType(Il2CppType.Of<VehicleControlPlayerState>())?.TryCast<VehicleControlPlayerState>();
         }
         return _state;

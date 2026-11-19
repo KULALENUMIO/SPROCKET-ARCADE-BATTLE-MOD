@@ -41,7 +41,7 @@ internal sealed class AutocannonHud
         var cfg = Plugin.Autocannon;
         AutocannonState state = null;
         WeaponBehaviour weapon = null;
-        if (cfg.Enabled.Value && cfg.ShowHud.Value && Time.timeScale > 0f)
+        if (cfg.Enabled.Value && cfg.ShowHud.Value && Core.Fast.TimeScale > 0f)
         {
             weapon = GetPlayerWeapon();
             state = Autocannons.Get(weapon);
@@ -59,9 +59,9 @@ internal sealed class AutocannonHud
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         if (_controller == null || _controller.ControlledVehicle == null)
@@ -101,7 +101,7 @@ internal sealed class AutocannonHud
         value = "<color=#" + hex + ">" + value + "</color>";
         if (value != _lastValue)
         {
-            _value.text = value;
+            HudStyle.SetText(_value, value);
             _lastValue = value;
         }
         var colour = HudStyle.Hex(hex);
@@ -127,9 +127,9 @@ internal sealed class AutocannonHud
         var x = left + pad + accentWidth;
         var inner = width - pad * 2f - accentWidth;
         var y = top - pad - headerHeight;
-        _caption.fontSize = font * 0.7f;
+        HudStyle.SetFontSize(_caption, font * 0.7f);
         HudStyle.Place(_caption, x, y, inner * 0.4f, headerHeight);
-        _value.fontSize = reloading || loadState != LoadState.Loaded ? font * 0.85f : font * 1.15f;
+        HudStyle.SetFontSize(_value, reloading || loadState != LoadState.Loaded ? font * 0.85f : font * 1.15f);
         HudStyle.Place(_value, x + inner * 0.25f, y, inner * 0.75f, headerHeight);
 
         var barY = bottom + pad;
@@ -199,7 +199,7 @@ internal sealed class AutocannonHud
         _track = HudStyle.CreateImage(t, "MagazineTrack", true);
         _bar = HudStyle.CreateImage(t, "Magazine", true);
         _caption = HudStyle.CreateText(t, "Caption", TextAlignmentOptions.MidlineLeft);
-        _caption.text = "<color=#" + HudStyle.Grey + ">" + T("Magazine") + "</color>";
+        HudStyle.SetText(_caption, "<color=#" + HudStyle.Grey + ">" + T("Magazine") + "</color>");
         _value = HudStyle.CreateText(t, "Rounds", TextAlignmentOptions.MidlineRight);
         _pips.Clear();
         _lastValue = null;

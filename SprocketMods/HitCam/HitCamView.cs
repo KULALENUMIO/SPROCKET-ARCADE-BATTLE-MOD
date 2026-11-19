@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Sprocket.Vehicles;
 using SprocketMods.UI;
 using TMPro;
@@ -142,6 +143,10 @@ internal sealed class HitCamView
     private GameObject _stage;
     private Camera _camera;
     private RenderTexture _texture;
+    private int _textureWidth;
+    private int _textureHeight;
+    private float _nextCameraHide;
+    private Core.Fast.Projector _projector;
     private int _layer = -1;
     private Exposure _exposure;
     private readonly List<MeshRenderer> _partRenderers = new();
@@ -154,6 +159,47 @@ internal sealed class HitCamView
     private Material[] _healthMaterials; // 体力の段階ごと（薄い青 → 暗い青 → 黒）
     private Material[] _hitMaterials; // この弾で傷ついた部品（赤 → 黒）
     private int[] _partKeys = Array.Empty<int>();
+
+    // 材質の配列（ゲーム側の形）の作り置き。renderer.sharedMaterials に C# の配列を渡すと毎回変換が走るので、
+    // 「同じ材質を n 個」と「部品の元の材質」は 1 回だけ変換して使い回す
+    private readonly Dictionary<(IntPtr, int), Il2CppReferenceArray<Material>> _filled = new();
+    private readonly Dictionary<Material[], Il2CppReferenceArray<Material>> _native = new(ReferenceEqualityComparer.Instance);
+    private Material[] _assigned = Array.Empty<Material>(); // 部品の描画ごとに今の差し替え材質（null = 部品の元の材質）
+
+    private Il2CppReferenceArray<Material> Filled(Material material, int count)
+    {
+        count = Math.Max(1, count);
+        var key = (material.Pointer, count);
+        if (_filled.TryGetValue(key, out var array))
+            return array;
+        if (_filled.Count > 512)
+            _filled.Clear();
+        array = new Il2CppReferenceArray<Material>(count);
+        for (var i = 0; i < count; i++)
+            array[i] = material;
+        _filled[key] = array;
+        return array;
+    }
+
+    private Il2CppReferenceArray<Material> Native(Material[] materials)
+    {
+        if (_native.TryGetValue(materials, out var array))
+            return array;
+        if (_native.Count > 4096)
+            _native.Clear();
+        array = new Il2CppReferenceArray<Material>(materials);
+        _native[materials] = array;
+        return array;
+    }
+
+    /// <summary>部品の描画に材質を付ける（replacement が null なら元の材質）。</summary>
+    private void Assign(int index, CapturedPart part, Material replacement)
+    {
+        if (_assigned.Length <= index)
+            Array.Resize(ref _assigned, Math.Max(index + 1, _assigned.Length * 2));
+        _assigned[index] = replacement;
+        _partRenderers[index].sharedMaterials = replacement == null ? Native(part.Materials) : Filled(replacement, part.Materials.Length);
+    }
     private Material _outlineYellow;
     private Material _outlineRed;
     private bool _materialsSearched;
@@ -201,7 +247,7 @@ internal sealed class HitCamView
         _subscribed = true;
     }
 
-    private bool Active => _capture != null && Time.unscaledTime < _endAt;
+    private bool Active => _capture != null && Core.Fast.Unscaled < _endAt;
 
     private void OnHit(HitCapture capture)
     {
@@ -221,7 +267,7 @@ internal sealed class HitCamView
                 return;
             }
             // 別の車両: 撃破の表示中や、命中が続いている間は切り替えない
-            if (_orbit || Time.unscaledTime - _lastHitAt < 1.5f)
+            if (_orbit || Core.Fast.Unscaled - _lastHitAt < 1.5f)
             {
                 capture.ViewNote = _orbit ? "skipped (kill orbit of another vehicle)" : "skipped (showing another vehicle)";
                 return;
@@ -241,14 +287,14 @@ internal sealed class HitCamView
                 _kill = true;
                 if (!Contains(capture))
                     AddHit(capture);
-                _killAt = Time.unscaledTime;
-                _endAt = Mathf.Max(_endAt, Time.unscaledTime + 2.5f);
+                _killAt = Core.Fast.Unscaled;
+                _endAt = Mathf.Max(_endAt, Core.Fast.Unscaled + 2.5f);
                 Compose();
             }
             return;
         }
         // 命中の表示を終えた直後の撃破（乗員の判定や火災で少し遅れて撃破になった）も出さない
-        if (capture.Body == _lastBody && Time.unscaledTime - _lastEnded < 4f)
+        if (capture.Body == _lastBody && Core.Fast.Unscaled - _lastEnded < 4f)
             return;
         Show(capture, true);
     }
@@ -283,15 +329,20 @@ internal sealed class HitCamView
         _orbit = kill;
         if (previous != capture)
             ReleaseIfDropped(previous);
-        _started = Time.unscaledTime;
+        _started = Core.Fast.Unscaled;
         _endAt = _started;
         _hits.Clear();
         _segments.Clear();
         _bursts.Clear();
         _sparks.Clear();
         _loopLength = 0f;
+        var perf9328 = SprocketMods.Debug.Perf.Begin();
         BuildModules(capture);
-        if (!BuildStage(capture))
+        SprocketMods.Debug.Perf.End("HitCam/Show/Modules", perf9328);
+        var stagePerf = SprocketMods.Debug.Perf.Begin();
+        var staged = BuildStage(capture);
+        SprocketMods.Debug.Perf.End("HitCam/Show/Stage", stagePerf);
+        if (!staged)
         {
             _capture = null;
             return;
@@ -300,7 +351,7 @@ internal sealed class HitCamView
         _entryTime = _hits[0].EntryTime;
         if (kill)
         {
-            _endAt = Mathf.Max(_endAt, Time.unscaledTime + Cfg.KillDuration.Value);
+            _endAt = Mathf.Max(_endAt, Core.Fast.Unscaled + Cfg.KillDuration.Value);
             _killAt = _started + _entryTime;
         }
         Compose();
@@ -311,7 +362,7 @@ internal sealed class HitCamView
     {
         // その命中の撮影フレームから、模型（最初の命中）の撮影フレームへ（車両はその間に動いている）
         var rotation = _capture.RootRotation * Quaternion.Inverse(capture.RootRotation);
-        var age = Time.unscaledTime - _started;
+        var age = Core.Fast.Unscaled - _started;
         var start = _hits.Count == 0 ? ShellStart : age;
         var hit = new HitView
         {
@@ -323,11 +374,15 @@ internal sealed class HitCamView
             Start = start,
             EntryTime = start + ApproachLength / ShellVisualSpeed,
         };
+        var perf7514 = SprocketMods.Debug.Perf.Begin();
         BuildSegments(capture, hit, rotation);
+        SprocketMods.Debug.Perf.End("HitCam/Show/Segments", perf7514);
+        var perf9623 = SprocketMods.Debug.Perf.Begin();
         ChooseView(hit);
+        SprocketMods.Debug.Perf.End("HitCam/Show/ChooseView", perf9623);
         _hits.Add(hit);
-        _lastHitAt = Time.unscaledTime;
-        _endAt = Mathf.Max(_endAt, Time.unscaledTime + Mathf.Max(Cfg.HitDuration.Value, AnimationEnd - ShellStart + 0.6f));
+        _lastHitAt = Core.Fast.Unscaled;
+        _endAt = Mathf.Max(_endAt, Core.Fast.Unscaled + Mathf.Max(Cfg.HitDuration.Value, AnimationEnd - ShellStart + 0.6f));
         if (_capture != capture && _hits.Count > 1)
             Compose();
     }
@@ -584,7 +639,8 @@ internal sealed class HitCamView
         {
             if (part.Mesh == null || part.Mesh.WasCollected)
                 continue;
-            var renderer = GetRenderer(_partRenderers, used++, false);
+            var index = used++;
+            var renderer = GetRenderer(_partRenderers, index, false);
             var t = renderer.transform;
             t.localPosition = part.Matrix.GetColumn(3);
             t.localRotation = part.Matrix.rotation;
@@ -593,16 +649,19 @@ internal sealed class HitCamView
             for (var m = 0; m < part.Materials.Length; m++)
             {
                 if (part.Materials[m] == null || part.Materials[m].WasCollected)
+                {
                     part.Materials[m] = _xray;
+                    _native.Remove(part.Materials);
+                }
             }
-            renderer.sharedMaterials = part.Materials;
+            Assign(index, part, null);
             renderer.SetPropertyBlock(_emptyBlock);
-            renderer.gameObject.SetActive(true);
+            HudStyle.SetActive(renderer, true);
             _shownParts.Add(part);
         }
         for (var i = used; i < _partRenderers.Count; i++)
         {
-            _partRenderers[i].gameObject.SetActive(false);
+            HudStyle.SetActive(_partRenderers[i], false);
             _partRenderers[i].GetComponent<MeshFilter>().sharedMesh = null;
         }
 
@@ -624,7 +683,7 @@ internal sealed class HitCamView
         }
         for (var i = outlines; i < _outlineRenderers.Count; i++)
         {
-            _outlineRenderers[i].gameObject.SetActive(false);
+            HudStyle.SetActive(_outlineRenderers[i], false);
             _outlineRenderers[i].GetComponent<MeshFilter>().sharedMesh = null;
         }
         _xrayApplied = false;
@@ -645,12 +704,8 @@ internal sealed class HitCamView
         t.localRotation = m.rotation;
         t.localScale = m.lossyScale;
         renderer.GetComponent<MeshFilter>().sharedMesh = part.Mesh;
-        var count = Math.Max(1, part.Materials.Length);
-        var materials = new Material[count];
-        for (var i = 0; i < count; i++)
-            materials[i] = material;
-        renderer.sharedMaterials = materials;
-        renderer.gameObject.SetActive(false);
+        renderer.sharedMaterials = Filled(material, part.Materials.Length);
+        HudStyle.SetActive(renderer, false);
     }
 
     private MeshRenderer GetRenderer(List<MeshRenderer> pool, int index, bool outline)
@@ -697,19 +752,16 @@ internal sealed class HitCamView
             var replacement = IsShell(part) ? (part.Fitting && _xrayFitting != null ? _xrayFitting : _xray) : _healthMaterials?[0];
             if (!on || replacement == null)
             {
-                renderer.sharedMaterials = part.Materials;
+                Assign(i, part, null);
                 renderer.SetPropertyBlock(_emptyBlock);
                 continue;
             }
-            var materials = new Material[Math.Max(1, part.Materials.Length)];
-            for (var m = 0; m < materials.Length; m++)
-                materials[m] = replacement;
-            renderer.sharedMaterials = materials;
+            Assign(i, part, replacement);
         }
         if (!on)
         {
             foreach (var outline in _outlineRenderers)
-                outline.gameObject.SetActive(false);
+                HudStyle.SetActive(outline, false);
         }
     }
 
@@ -741,11 +793,7 @@ internal sealed class HitCamView
                 if (_partKeys[i] == -2)
                     continue;
                 _partKeys[i] = -2;
-                var fitting = _xrayFitting ?? _xray;
-                var plain = new Material[Math.Max(1, part.Materials.Length)];
-                for (var m = 0; m < plain.Length; m++)
-                    plain[m] = fitting;
-                _partRenderers[i].sharedMaterials = plain;
+                Assign(i, part, _xrayFitting ?? _xray);
                 continue;
             }
             // 材質が変わったときだけ差し替える
@@ -754,16 +802,12 @@ internal sealed class HitCamView
             if (_partKeys[i] == key)
                 continue;
             _partKeys[i] = key;
-            var material = highlighted ? _hitMaterials[step] : _healthMaterials[step];
-            var materials = new Material[Math.Max(1, part.Materials.Length)];
-            for (var m = 0; m < materials.Length; m++)
-                materials[m] = material;
-            _partRenderers[i].sharedMaterials = materials;
+            Assign(i, part, highlighted ? _hitMaterials[step] : _healthMaterials[step]);
             _partRenderers[i].SetPropertyBlock(_emptyBlock);
         }
 
         // 縁取りは傷ついた瞬間から、ゆっくり明滅させる
-        var pulse = 0.75f + 0.25f * Mathf.Sin(age * 7f);
+        var pulse = 0.75f + 0.25f * MathF.Sin(age * 7f);
         for (var index = 0; index < _outlines.Count && index < _outlineRenderers.Count; index++)
         {
             var (_, module, outer) = _outlines[index];
@@ -771,12 +815,12 @@ internal sealed class HitCamView
             // 縁取りは、この弾で完全に壊れた（体力 0）部品だけ
             module.State(t, out var hit, out var value);
             var show = hit && value <= 0f;
-            if (renderer.gameObject.activeSelf != show)
-                renderer.gameObject.SetActive(show);
+            HudStyle.SetActive(renderer, show);
             if (!show)
                 continue;
             var colour = outer ? OutlineYellow : OutlineRed;
-            colour *= outer ? pulse : 1f;
+            if (outer)
+                colour = Core.Fast.Rgba(colour.r * pulse, colour.g * pulse, colour.b * pulse, colour.a * pulse);
             _block.Clear();
             _block.SetColor(_litColourId, colour);
             _block.SetColor(_unlitColourId, colour);
@@ -790,30 +834,30 @@ internal sealed class HitCamView
     /// <summary>消えた材質（撃破で作り直された車両など）は X 線表示の材質に替える（そのままだと紫で描かれる）。</summary>
     private void SanitizeMaterials()
     {
-        for (var i = 0; i < _shownParts.Count && i < _partRenderers.Count; i++)
+        // 描画から読み戻すと配列の写しが毎回できるので、自分が付けた材質を見る
+        for (var i = 0; i < _shownParts.Count && i < _partRenderers.Count && i < _assigned.Length; i++)
         {
-            var materials = _partRenderers[i].sharedMaterials;
-            var broken = false;
-            for (var m = 0; m < materials.Length; m++)
+            var part = _shownParts[i];
+            var replacement = _assigned[i];
+            if (replacement != null)
             {
-                if (materials[m] == null || materials[m].WasCollected)
+                if (replacement.WasCollected)
+                    Assign(i, part, _xray);
+                continue;
+            }
+            var broken = false;
+            for (var m = 0; m < part.Materials.Length; m++)
+            {
+                if (part.Materials[m] == null || part.Materials[m].WasCollected)
                 {
+                    part.Materials[m] = _xray;
                     broken = true;
-                    break;
                 }
             }
             if (!broken)
                 continue;
-            var part = _shownParts[i];
-            for (var m = 0; m < part.Materials.Length; m++)
-            {
-                if (part.Materials[m] == null || part.Materials[m].WasCollected)
-                    part.Materials[m] = _xray;
-            }
-            var fixedMaterials = new Material[Math.Max(1, materials.Length)];
-            for (var m = 0; m < fixedMaterials.Length; m++)
-                fixedMaterials[m] = m < materials.Length && materials[m] != null && !materials[m].WasCollected ? materials[m] : _xray;
-            _partRenderers[i].sharedMaterials = fixedMaterials;
+            _native.Remove(part.Materials);
+            Assign(i, part, null);
         }
     }
 
@@ -822,6 +866,8 @@ internal sealed class HitCamView
         if (_materialsSearched && _xray != null && !_xray.WasCollected)
             return;
         _materialsSearched = true;
+        _filled.Clear();
+        _native.Clear();
         _xray = null;
         _component = null;
         _block ??= new MaterialPropertyBlock();
@@ -909,8 +955,8 @@ internal sealed class HitCamView
     /// <summary>設定（濃さ・明るさ）を外側の装備品の材質に入れる。設定が変わったときだけ。</summary>
     private static void TintFitting(Material m, Material source)
     {
-        var tint = new Vector2(Cfg.FittingOpacity.Value, Cfg.FittingBrightness.Value);
-        if (m == null || source == null || m.WasCollected || source.WasCollected || tint == _fittingTint)
+        var tint = Core.Fast.V2(Cfg.FittingOpacity.Value, Cfg.FittingBrightness.Value);
+        if (tint.x == _fittingTint.x && tint.y == _fittingTint.y || !Core.Fast.Alive(m) || !Core.Fast.Alive(source))
             return;
         _fittingTint = tint;
         foreach (var name in new[] { "_LitColour", "_UnlitColour" })
@@ -1027,6 +1073,7 @@ internal sealed class HitCamView
                 hd.antialiasing = HDAdditionalCameraData.AntialiasingMode.FastApproximateAntialiasing;
                 // 透かしの材質で NaN の画素が出ると、後処理で画面全体が黒くなる（1 フレームだけ真っ黒になる）。NaN を止める
                 hd.stopNaNs = true;
+                LightenFrameSettings(hd);
             }
             catch (Exception e)
             {
@@ -1038,6 +1085,45 @@ internal sealed class HitCamView
         if (_exposure != null && !_exposure.WasCollected)
             _exposure.fixedExposure.value = Cfg.Exposure.Value;
         return _camera != null;
+    }
+
+    // ヒットカメラの小さな画面では見えない・要らない HDRP の機能（FrameSettingsField の番号）。
+    // 影・ブルーム・色調整・露出は残して見た目を保つ
+    private static readonly int[] DisabledFrameSettings =
+    {
+        10, 11, 16, // MotionVectors, ObjectMotionVectors, TransparentsWriteMotionVector
+        12, 96, // Decals, DecalLayers
+        13, 14, 18, 67, // Refraction, Distortion, LowResTransparent, RoughDistortion
+        21, 34, // ContactShadows, ScreenSpaceShadows
+        23, 94, 24, 95, // SSR, TransparentSSR, SSAO, SSGI
+        26, 46, // Transmission, SubsurfaceScattering
+        27, 28, 29, 79, // AtmosphericScattering, Volumetrics, ReprojectionForVolumetrics, VolumetricClouds
+        81, 82, 83, 85, 86, 87, 89, // DepthOfField, MotionBlur, PaniniProjection, LensDistortion, ChromaticAberration, Vignette, FilmGrain
+        97, 104, // LensFlareDataDriven, LensFlareScreenSpace
+        99, 101, 102, // Water, WaterExclusion, WaterDecals
+        92, // RayTracing
+    };
+
+    /// <summary>
+    /// ヒットカメラの描画を軽くする: カメラ独自の FrameSettings を使い、上の機能を切る。
+    /// HDAdditionalCameraData の customRenderingSettings（+0xBF）、m_RenderingPathCustomFrameSettings（+0x140、先頭が BitArray128 bitDatas）、
+    /// renderingPathCustomFrameSettingsOverrideMask（+0x188、BitArray128 mask）をメモリに直接書く（構造体の受け渡しを避ける）。
+    /// </summary>
+    private static unsafe void LightenFrameSettings(HDAdditionalCameraData hd)
+    {
+        if (!Cfg.LightRendering.Value)
+            return;
+        var p = hd.Pointer;
+        var bits = (ulong*)(p + 0x140);
+        var mask = (ulong*)(p + 0x188);
+        foreach (var field in DisabledFrameSettings)
+        {
+            var word = field >> 6;
+            var bit = 1UL << (field & 63);
+            mask[word] |= bit; // このカメラで上書きする
+            bits[word] &= ~bit; // 切る
+        }
+        *(bool*)(p + 0xBF) = true;
     }
 
     /// <summary>
@@ -1082,8 +1168,10 @@ internal sealed class HitCamView
 
     private void EnsureTexture(int width, int height)
     {
-        if (_texture != null && !_texture.WasCollected && _texture.width == width && _texture.height == height)
+        if (Core.Fast.Alive(_texture) && _textureWidth == width && _textureHeight == height)
             return;
+        _textureWidth = width;
+        _textureHeight = height;
         if (_texture != null && !_texture.WasCollected)
         {
             _camera.targetTexture = null;
@@ -1099,6 +1187,10 @@ internal sealed class HitCamView
     /// <summary>ほかのカメラに模型が写らないようにする（模型は遠くにあるが念のため）。</summary>
     private void HideFromOtherCameras()
     {
+        // カメラの一覧は呼ぶたびに配列が作られるので、0.5 秒に 1 回
+        if (Core.Fast.Unscaled < _nextCameraHide)
+            return;
+        _nextCameraHide = Core.Fast.Unscaled + 0.5f;
         var bit = 1 << _layer;
         foreach (var camera in Camera.allCameras)
         {
@@ -1118,9 +1210,9 @@ internal sealed class HitCamView
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Hit cam view failed: {e}");
             }
             Hide();
@@ -1134,11 +1226,11 @@ internal sealed class HitCamView
             Hide();
             return;
         }
-        var age = Time.unscaledTime - _started;
-        if (Time.unscaledTime > _endAt || _capture.Released)
+        var age = Core.Fast.Unscaled - _started;
+        if (Core.Fast.Unscaled > _endAt || _capture.Released)
         {
             _lastBody = _capture.Body;
-            _lastEnded = Time.unscaledTime;
+            _lastEnded = Core.Fast.Unscaled;
             ReleaseIfDropped(_capture);
             _capture = null;
             Hide();
@@ -1148,15 +1240,15 @@ internal sealed class HitCamView
             return;
 
         var scale = HudStyle.Scale;
-        var width = Mathf.Round(Cfg.Size.Value * scale);
-        var height = Mathf.Round(width * 0.6f);
-        var pad = Mathf.Round(4f * scale);
-        var header = Mathf.Round(26f * scale);
+        var width = MathF.Round(Cfg.Size.Value * scale);
+        var height = MathF.Round(width * 0.6f);
+        var pad = MathF.Round(4f * scale);
+        var header = MathF.Round(26f * scale);
         var margin = 24f * scale;
         var panelW = width + pad * 2f;
         var panelH = height + header + pad * 2f;
-        var x = Screen.width - margin - panelW;
-        var y = Screen.height - margin - panelH;
+        var x = Core.Fast.ScreenWidth - margin - panelW;
+        var y = Core.Fast.ScreenHeight - margin - panelH;
 
         _root.SetActive(true);
         _stage.SetActive(true);
@@ -1166,17 +1258,17 @@ internal sealed class HitCamView
         HudStyle.StylePanel(_panel, scale);
         HudStyle.Place(_panel, x, y, panelW, panelH);
         HudStyle.Place(_image, x + pad, y + pad + header, width, height);
-        _overlay.anchoredPosition = new Vector2(x + pad, y + pad + header);
-        _overlay.sizeDelta = new Vector2(width, height);
-        var accentW = Mathf.Max(2f, 3f * scale);
+        _overlay.anchoredPosition = Core.Fast.V2(x + pad, y + pad + header);
+        _overlay.sizeDelta = Core.Fast.V2(width, height);
+        var accentW = MathF.Max(2f, 3f * scale);
         _accent.color = HudStyle.Hex(AccentHex());
         HudStyle.Place(_accent, x + pad + 4f * scale, y + pad + header * 0.2f, accentW, header * 0.6f);
-        _title.fontSize = 16f * scale;
-        _name.fontSize = 15f * scale;
+        HudStyle.SetFontSize(_title, 16f * scale);
+        HudStyle.SetFontSize(_name, 15f * scale);
         HudStyle.Place(_title, x + pad + 12f * scale, y + pad, width * 0.5f, header);
         HudStyle.Place(_name, x + pad + width * 0.4f, y + pad, width * 0.6f - 8f * scale, header);
 
-        var alpha = Mathf.Clamp01(age / FadeTime) * Mathf.Clamp01((_endAt - Time.unscaledTime) / 0.35f);
+        var alpha = Core.Fast.Clamp01(age / FadeTime) * Core.Fast.Clamp01((_endAt - Core.Fast.Unscaled) / 0.35f);
         _group.alpha = alpha;
 
         // アニメーションの時間（撃破はくり返す）
@@ -1185,35 +1277,49 @@ internal sealed class HitCamView
         var xray = _orbit && age > _loopLength;
         foreach (var hit in _hits)
             xray |= (hit.Outcome == HitCamOutcome.Penetration || _kill) && t >= hit.EntryTime;
+        var perf7307 = SprocketMods.Debug.Perf.Begin();
         ApplyXRay(xray);
+        SprocketMods.Debug.Perf.End("HitCam/Draw/XRay", perf7307);
 
-        if (Time.unscaledTime >= _nextSanitize)
+        if (Core.Fast.Unscaled >= _nextSanitize)
         {
-            _nextSanitize = Time.unscaledTime + 0.25f;
+            _nextSanitize = Core.Fast.Unscaled + 0.25f;
+            var perf6455 = SprocketMods.Debug.Perf.Begin();
             SanitizeMaterials();
+            SprocketMods.Debug.Perf.End("HitCam/Draw/Sanitize", perf6455);
         }
         UpdateFire(t);
         TintFitting(_xrayFitting, _xray);
+        var perf5604 = SprocketMods.Debug.Perf.Begin();
         ColourModules(t, age);
+        SprocketMods.Debug.Perf.End("HitCam/Draw/Colour", perf5604);
+        var perf3437 = SprocketMods.Debug.Perf.Begin();
         PlaceCamera(t, age, width / height);
+        SprocketMods.Debug.Perf.End("HitCam/Draw/Camera", perf3437);
 
         _lineCount = 0;
         _dotCount = 0;
+        _projector.Set(_camera);
         DrawImpact(t, width, height, scale);
+        var perf5560 = SprocketMods.Debug.Perf.Begin();
         DrawPaths(t, width, height, scale);
+        SprocketMods.Debug.Perf.End("HitCam/Draw/Paths", perf5560);
+        var perf4328 = SprocketMods.Debug.Perf.Begin();
         DrawBursts(t, width, height);
+        SprocketMods.Debug.Perf.End("HitCam/Draw/Bursts", perf4328);
         for (var i = _lineCount; i < _lines.Count; i++)
             HudStyle.SetActive(_lines[i], false);
         for (var i = _dotCount; i < _dots.Count; i++)
             HudStyle.SetActive(_dots[i], false);
 
-        _banner.gameObject.SetActive(_kill);
+        HudStyle.SetActive(_banner, _kill);
         if (_kill)
         {
-            var k = Mathf.Clamp01((Time.unscaledTime - _killAt) / 0.3f);
-            _banner.fontSize = 30f * scale;
+            var k = Core.Fast.Clamp01((Core.Fast.Unscaled - _killAt) / 0.3f);
+            HudStyle.SetFontSize(_banner, 30f * scale);
             _banner.alpha = k;
-            _banner.transform.localScale = Vector3.one * Mathf.Lerp(1.25f, 1f, k);
+            var grow = Core.Fast.Lerp(1.25f, 1f, k);
+            _banner.transform.localScale = Core.Fast.V3(grow, grow, grow);
             HudStyle.Place(_banner, x + pad, y + pad + header + height * 0.72f, width, height * 0.25f);
         }
     }
@@ -1362,33 +1468,33 @@ internal sealed class HitCamView
         {
             if (t < s.T0)
                 continue;
-            var k = s.T1 > s.T0 ? Mathf.Clamp01((t - s.T0) / (s.T1 - s.T0)) : 1f;
-            var head = Vector3.Lerp(s.A, s.B, k);
+            var k = s.T1 > s.T0 ? Core.Fast.Clamp01((t - s.T0) / (s.T1 - s.T0)) : 1f;
+            var head = Core.Fast.Lerp(s.A, s.B, k);
             if (s.Kind == SegmentKind.Shell)
             {
                 if (!Project(s.A, width, height, out var a) || !Project(head, width, height, out var b))
                     continue;
                 // 着いた後は早めに薄くする（破片が見えるように）
-                var fade = k >= 1f ? Mathf.Clamp01(1f - (t - s.T1) / 1.2f) * 0.6f + 0.25f : 1f;
+                var fade = k >= 1f ? Core.Fast.Clamp01(1f - (t - s.T1) / 1.2f) * 0.6f + 0.25f : 1f;
                 // 砲弾: 太く光る線と、大きく光る先端
-                AddLine(a, b, 12f * scale, new Color(1f, 0.62f, 0.2f, fade * 0.35f));
+                AddLine(a, b, 12f * scale, Core.Fast.Rgba(1f, 0.62f, 0.2f, fade * 0.35f));
                 var core = shellColour;
                 core.a = fade;
                 AddLine(a, b, 3.5f * scale, core);
                 if (k < 1f)
                 {
-                    AddDot(b, 34f * scale, new Color(1f, 0.6f, 0.15f, 0.75f), _glowSprite);
-                    AddDot(b, 12f * scale, Color.white, _glowSprite);
+                    AddDot(b, 34f * scale, Core.Fast.Rgba(1f, 0.6f, 0.15f, 0.75f), _glowSprite);
+                    AddDot(b, 12f * scale, Core.Fast.Rgba(1f, 1f, 1f), _glowSprite);
                 }
                 continue;
             }
 
             // 破片: 尾を引く光。カメラに近いほど太い。傷つけた破片は明るく残し、ほかは着いたらすぐ薄くする
-            var near = Mathf.Clamp(2.5f / Mathf.Max(0.3f, (head - eye).magnitude), 0.6f, 1.8f) * scale;
+            var near = Math.Clamp(2.5f / MathF.Max(0.3f, Core.Fast.Distance(head, eye)), 0.6f, 1.8f) * scale;
             var landed = t - s.T1;
             var pathAlpha = s.Important
-                ? (k < 1f ? 0.65f : Mathf.Lerp(0.95f, 0.55f, Mathf.Clamp01(landed / 2f)))
-                : (k < 1f ? 0.4f : 0.4f * Mathf.Clamp01(1f - landed / 1.2f));
+                ? (k < 1f ? 0.65f : Core.Fast.Lerp(0.95f, 0.55f, landed / 2f))
+                : (k < 1f ? 0.4f : 0.4f * Core.Fast.Clamp01(1f - landed / 1.2f));
             if (!Project(head, width, height, out var h))
                 continue;
             if (pathAlpha > 0.01f && Project(s.A, width, height, out var from))
@@ -1399,17 +1505,17 @@ internal sealed class HitCamView
             }
             if (k < 1f)
             {
-                var length = (s.B - s.A).magnitude;
-                var tailK = length > 1e-3f ? Mathf.Max(0f, k - 0.9f / length) : 0f;
-                if (Project(Vector3.Lerp(s.A, s.B, tailK), width, height, out var tail))
+                var length = Core.Fast.Distance(s.B, s.A);
+                var tailK = length > 1e-3f ? MathF.Max(0f, k - 0.9f / length) : 0f;
+                if (Project(Core.Fast.Lerp(s.A, s.B, tailK), width, height, out var tail))
                 {
-                    AddLine(tail, h, (s.Important ? 9f : 6f) * near, new Color(1f, 0.5f, 0.12f, s.Important ? 0.45f : 0.3f));
+                    AddLine(tail, h, (s.Important ? 9f : 6f) * near, Core.Fast.Rgba(1f, 0.5f, 0.12f, s.Important ? 0.45f : 0.3f));
                     AddLine(tail, h, (s.Important ? 3.5f : 2.5f) * near, spallCore);
                 }
-                AddDot(h, (s.Important ? 20f : 13f) * near, new Color(1f, 0.85f, 0.5f, 0.95f), _glowSprite);
+                AddDot(h, (s.Important ? 20f : 13f) * near, Core.Fast.Rgba(1f, 0.85f, 0.5f, 0.95f), _glowSprite);
             }
             else if (s.Stopped && pathAlpha > 0.05f)
-                AddDot(h, 5f * near, new Color(1f, 0.35f, 0.15f, pathAlpha), _glowSprite);
+                AddDot(h, 5f * near, Core.Fast.Rgba(1f, 0.35f, 0.15f, pathAlpha), _glowSprite);
         }
 
         // 破片が傷つけた部品に届いた所の火花
@@ -1419,8 +1525,8 @@ internal sealed class HitCamView
             if (dt < 0f || dt > 0.6f || !Project(spark.Position, width, height, out var p))
                 continue;
             var k = dt / 0.6f;
-            AddDot(p, Mathf.Lerp(10f, 40f, Mathf.Sqrt(k)) * scale, new Color(1f, 0.25f, 0.08f, 0.9f * (1f - k)), _glowSprite);
-            AddDot(p, Mathf.Lerp(8f, 14f, k) * scale, new Color(1f, 1f, 0.85f, 1f - k), _glowSprite);
+            AddDot(p, Core.Fast.Lerp(10f, 40f, MathF.Sqrt(k)) * scale, Core.Fast.Rgba(1f, 0.25f, 0.08f, 0.9f * (1f - k)), _glowSprite);
+            AddDot(p, Core.Fast.Lerp(8f, 14f, k) * scale, Core.Fast.Rgba(1f, 1f, 0.85f, 1f - k), _glowSprite);
         }
     }
 
@@ -1434,30 +1540,32 @@ internal sealed class HitCamView
                 continue;
             var k = dt / 0.9f;
             var penetrated = hit.Outcome == HitCamOutcome.Penetration;
-            var colour = penetrated ? new Color(1f, 0.12f, 0.05f, 0.85f * (1f - k)) : new Color(1f, 0.85f, 0.4f, 0.85f * (1f - k));
-            AddDot(p, Mathf.Lerp(20f, 90f, Mathf.Sqrt(k)) * scale, colour, _glowSprite);
-            AddDot(p, Mathf.Lerp(14f, 30f, k) * scale, new Color(1f, 1f, 0.9f, 1f - k), _glowSprite);
+            var colour = penetrated ? Core.Fast.Rgba(1f, 0.12f, 0.05f, 0.85f * (1f - k)) : Core.Fast.Rgba(1f, 0.85f, 0.4f, 0.85f * (1f - k));
+            AddDot(p, Core.Fast.Lerp(20f, 90f, MathF.Sqrt(k)) * scale, colour, _glowSprite);
+            AddDot(p, Core.Fast.Lerp(14f, 30f, k) * scale, Core.Fast.Rgba(1f, 1f, 0.9f, 1f - k), _glowSprite);
         }
     }
 
     /// <summary>誘爆・火災: 赤い輪が何重にも広がる。</summary>
     private void DrawBursts(float t, float width, float height)
     {
+        if (_bursts.Count == 0)
+            return;
+        var right = _camera.transform.right;
         foreach (var burst in _bursts)
         {
             var dt = t - burst.Start;
             if (dt < 0f || !Project(burst.Position, width, height, out var centre))
                 continue;
             // 1 m が画面で何ピクセルか
-            var right = _camera.transform.right;
-            if (!Project(burst.Position + right, width, height, out var edge))
+            if (!Project(Core.Fast.Add(burst.Position, right), width, height, out var edge))
                 continue;
             // 輪の大きさは 1 m の見かけの 2 倍（小さいと見えにくい）
-            var metre = Mathf.Clamp((edge - centre).magnitude * 2f, 8f, height * 0.44f);
-            var colour = burst.Fire ? new Color(1f, 0.32f, 0.06f, 1f) : new Color(1f, 0.1f, 0.06f, 1f);
+            var metre = Math.Clamp(Core.Fast.Length(Core.Fast.V2(edge.x - centre.x, edge.y - centre.y)) * 2f, 8f, height * 0.44f);
+            var colour = burst.Fire ? Core.Fast.Rgba(1f, 0.32f, 0.06f, 1f) : Core.Fast.Rgba(1f, 0.1f, 0.06f, 1f);
             // 中心の光
             var glow = colour;
-            glow.a = 0.45f + 0.15f * Mathf.Sin(dt * 6f);
+            glow.a = 0.45f + 0.15f * MathF.Sin(dt * 6f);
             AddDot(centre, metre * 0.8f, glow, _glowSprite);
             // 0.4 秒ごとに新しい輪が生まれ、1.4 秒かけて広がりながら消える
             const float period = 0.4f;
@@ -1473,22 +1581,23 @@ internal sealed class HitCamView
                 var k = age / life;
                 var ring = colour;
                 ring.a = (1f - k) * 0.7f;
-                AddDot(centre, metre * Mathf.Lerp(0.2f, 1.5f, Mathf.Sqrt(k)), ring, _ringSprite);
+                AddDot(centre, metre * Core.Fast.Lerp(0.2f, 1.5f, MathF.Sqrt(k)), ring, _ringSprite);
             }
         }
     }
 
     private bool Project(Vector3 point, float width, float height, out Vector2 screen)
     {
-        var v = _camera.WorldToViewportPoint(StageOrigin + point);
-        screen = new Vector2(v.x * width, v.y * height);
+        var v = _projector.Viewport(Core.Fast.Add(StageOrigin, point));
+        screen = Core.Fast.V2(v.x * width, v.y * height);
         return v.z > 0.05f;
     }
 
     private void AddLine(Vector2 a, Vector2 b, float thickness, Color colour)
     {
-        var d = b - a;
-        var length = d.magnitude;
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        var length = MathF.Sqrt(dx * dx + dy * dy);
         if (length < 0.5f)
             return;
         if (_lineCount >= _lines.Count)
@@ -1502,8 +1611,8 @@ internal sealed class HitCamView
         line.color = colour;
         var rt = line.rectTransform;
         rt.anchoredPosition = a;
-        rt.sizeDelta = new Vector2(length, Mathf.Max(1f, thickness));
-        rt.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+        rt.sizeDelta = Core.Fast.V2(length, MathF.Max(1f, thickness));
+        rt.localRotation = Core.Fast.RotZ(MathF.Atan2(dy, dx) * (180f / MathF.PI));
     }
 
     private void AddDot(Vector2 p, float size, Color colour, Sprite sprite)
@@ -1516,12 +1625,12 @@ internal sealed class HitCamView
         }
         var dot = _dots[_dotCount++];
         HudStyle.SetActive(dot, true);
-        if (dot.sprite != sprite)
+        if (dot.sprite?.Pointer != sprite?.Pointer)
             dot.sprite = sprite;
         dot.color = colour;
         var rt = dot.rectTransform;
         rt.anchoredPosition = p;
-        rt.sizeDelta = new Vector2(size, size);
+        rt.sizeDelta = Core.Fast.V2(size, size);
     }
 
     // ------------------------------------------------------------------ 光と輪の絵
@@ -1588,9 +1697,9 @@ internal sealed class HitCamView
                 _ => "NON-PENETRATION",
             };
         var ammo = string.IsNullOrEmpty(_capture.Ammo) ? "" : "<size=80%><color=#D8D8D8>  " + T(_capture.Ammo) + "</color></size>";
-        _title.text = "<b><color=#" + AccentHex() + ">" + T(title) + "</color></b>" + ammo;
-        _name.text = "<color=#FF6A5A><noparse>" + (_capture.VictimName ?? "?") + "</noparse></color>";
-        _banner.text = "<b><color=#FF5A47>" + T("KNOCKED OUT") + "</color></b>";
+        HudStyle.SetText(_title, "<b><color=#" + AccentHex() + ">" + T(title) + "</color></b>" + ammo);
+        HudStyle.SetText(_name, "<color=#FF6A5A><noparse>" + (_capture.VictimName ?? "?") + "</noparse></color>");
+        HudStyle.SetText(_banner, "<b><color=#FF5A47>" + T("KNOCKED OUT") + "</color></b>");
     }
 
     private static string T(string english) => Plugin.Localization?.Translate(english) ?? english;

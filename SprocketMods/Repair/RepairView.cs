@@ -35,7 +35,7 @@ internal sealed class RepairView
     {
         var cfg = Plugin.Repair;
         var system = RepairSystem.Instance;
-        if (!cfg.Enabled.Value || system == null || Time.timeScale <= 0f || !Ensure())
+        if (!cfg.Enabled.Value || system == null || Core.Fast.TimeScale <= 0f || !Ensure())
         {
             SetActive(false);
             return;
@@ -44,7 +44,7 @@ internal sealed class RepairView
         var repairing = mode == RepairMode.Repairing;
         var arming = mode == RepairMode.Arming;
         var cancelling = repairing && system.PlayerArmFraction > 0f;
-        var completed = !repairing && !arming && Time.unscaledTime - system.PlayerCompletedAt < CompletedTime;
+        var completed = !repairing && !arming && Core.Fast.Unscaled - system.PlayerCompletedAt < CompletedTime;
         var hint = !repairing && !arming && !completed && system.PlayerDamaged && cfg.ShowHint.Value;
         if (!repairing && !arming && !completed && !hint)
         {
@@ -102,18 +102,18 @@ internal sealed class RepairView
             var seconds = completed ? "0" : Mathf.CeilToInt(system.PlayerRemaining).ToString();
             if (seconds != _lastSeconds)
             {
-                _seconds.text = "<b>" + seconds + "</b>";
+                HudStyle.SetText(_seconds, "<b>" + seconds + "</b>");
                 _lastSeconds = seconds;
             }
-            _seconds.fontSize = 26f * s;
+            HudStyle.SetFontSize(_seconds, 26f * s);
             HudStyle.Place(_seconds, cx - ring * 0.5f, cy - ring * 0.5f, ring, ring);
 
             if (label != _lastLabel)
             {
-                _label.text = label;
+                HudStyle.SetText(_label, label);
                 _lastLabel = label;
             }
-            _label.fontSize = 17f * s;
+            HudStyle.SetFontSize(_label, 17f * s);
             HudStyle.Place(_label, cx - 150f * s, cy - ring * 0.5f - 30f * s, 300f * s, 26f * s);
         }
 
@@ -126,7 +126,7 @@ internal sealed class RepairView
                 // 修理中は「長押しで中止」を小さく
                 text = "<color=#BBBBBB>" + T("Hold [KEY] to cancel").Replace("KEY", key) + "</color>";
                 y = cy - ring * 0.5f - 54f * s;
-                _hint.fontSize = 13f * s;
+                HudStyle.SetFontSize(_hint, 13f * s);
             }
             else
             {
@@ -134,11 +134,11 @@ internal sealed class RepairView
                     ? "<color=#BBBBBB>" + T("No crew to repair") + "</color>"
                     : "<color=#EEEEEE>" + T("Hold [KEY] to repair (" + Mathf.CeilToInt(system.PlayerRemaining) + " s)").Replace("KEY", key) + "</color>";
                 y = cy - 14f * s;
-                _hint.fontSize = 16f * s;
+                HudStyle.SetFontSize(_hint, 16f * s);
             }
             if (text != _lastHint)
             {
-                _hint.text = text;
+                HudStyle.SetText(_hint, text);
                 _lastHint = text;
             }
             HudStyle.Place(_hint, cx - 250f * s, y, 500f * s, 28f * s);

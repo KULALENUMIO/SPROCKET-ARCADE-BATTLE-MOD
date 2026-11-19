@@ -318,6 +318,8 @@ internal static class ModSettingsUi
         Slider(d, menu, "Hit camera duration (s)", hc.HitDuration.Value, 1.5f, 10f, v => hc.HitDuration.Value = v);
         Slider(d, menu, "Kill camera duration (s)", hc.KillDuration.Value, 3f, 15f, v => hc.KillDuration.Value = v);
         Slider(d, menu, "Hit camera: tracks and fittings opacity", hc.FittingOpacity.Value, 0f, 0.8f, v => hc.FittingOpacity.Value = v);
+        Toggle(d, menu, "Hit camera: light rendering", hc.LightRendering.Value, v => hc.LightRendering.Value = v,
+            "Render the hit camera without effects that cannot be seen in its small window (ambient occlusion, reflections, fog, depth of field and so on). Shadows, lighting and colours stay. Takes effect after a restart.");
         var am = Plugin.Ammo;
         Toggle(d, menu, "Shell types (1 / 2 / 3)", am.Enabled.Value, v => am.Enabled.Value = v,
             "Switch between armour-piercing, armour-piercing high-explosive and high-explosive shells with 1, 2 and 3. Any stored round can be fired as any type.");

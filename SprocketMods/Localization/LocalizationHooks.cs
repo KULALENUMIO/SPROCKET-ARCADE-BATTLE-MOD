@@ -42,57 +42,89 @@ internal static class LocalizationHooks
 
     private static void TextSetPrefix(TMP_Text __instance, ref string value)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            var manager = LocalizationManager.Instance;
-            if (manager != null && manager.Active)
-                value = manager.OnTextSet(__instance, value);
+            try
+            {
+                var manager = LocalizationManager.Instance;
+                if (manager != null && manager.Active)
+                    value = manager.OnTextSet(__instance, value);
+            }
+            catch (Exception e)
+            {
+                Report(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Report(e);
+            SprocketMods.Debug.Perf.End("Text.Set", perf);
         }
     }
 
     private static void SetTextPrefix(TMP_Text __instance, ref string sourceText)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            var manager = LocalizationManager.Instance;
-            if (manager != null && manager.Active)
-                sourceText = manager.OnTextSet(__instance, sourceText);
+            try
+            {
+                var manager = LocalizationManager.Instance;
+                if (manager != null && manager.Active)
+                    sourceText = manager.OnTextSet(__instance, sourceText);
+            }
+            catch (Exception e)
+            {
+                Report(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Report(e);
+            SprocketMods.Debug.Perf.End("Text.SetText", perf);
         }
     }
 
     private static void EnablePostfix(TMP_Text __instance)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            var manager = LocalizationManager.Instance;
-            if (manager != null && manager.Active)
-                manager.OnTextEnabled(__instance);
+            try
+            {
+                var manager = LocalizationManager.Instance;
+                if (manager != null && manager.Active)
+                    manager.OnTextEnabled(__instance);
+            }
+            catch (Exception e)
+            {
+                Report(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Report(e);
+            SprocketMods.Debug.Perf.End("Text.OnEnable", perf);
         }
     }
 
     private static void LegacyTextSetPrefix(ref string value)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            var manager = LocalizationManager.Instance;
-            if (manager != null && manager.Active)
-                value = manager.OnLegacyTextSet(value);
+            try
+            {
+                var manager = LocalizationManager.Instance;
+                if (manager != null && manager.Active)
+                    value = manager.OnLegacyTextSet(value);
+            }
+            catch (Exception e)
+            {
+                Report(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Report(e);
+            SprocketMods.Debug.Perf.End("Text.LegacySet", perf);
         }
     }
 

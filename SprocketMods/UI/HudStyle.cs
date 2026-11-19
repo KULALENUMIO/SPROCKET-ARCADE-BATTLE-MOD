@@ -51,11 +51,27 @@ internal static class HudStyle
     private static float _nextFontSearch;
 
     /// <summary>1080p 基準の拡大率（HudStyle.Scale を含む）。</summary>
-    public static float Scale => Screen.height / 1080f * (Plugin.Style?.Scale.Value ?? 1f);
+    public static float Scale => Core.Fast.ScreenHeight / 1080f * (Plugin.Style?.Scale.Value ?? 1f);
 
+    private static readonly System.Collections.Generic.Dictionary<string, Color> HexCache = new();
+
+    /// <summary>"RRGGBB" / "RRGGBBAA" の色。C# で読んで覚える（ゲーム側の解析は文字列と結果の箱詰めでごみが出る）。</summary>
     public static Color Hex(string hex)
     {
-        ColorUtility.TryParseHtmlString("#" + hex, out var c);
+        if (hex == null)
+            return default;
+        if (HexCache.TryGetValue(hex, out var c))
+            return c;
+        if ((hex.Length == 6 || hex.Length == 8) && uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var v))
+        {
+            if (hex.Length == 6)
+                v = (v << 8) | 0xFF;
+            c = new Color { r = ((v >> 24) & 0xFF) / 255f, g = ((v >> 16) & 0xFF) / 255f, b = ((v >> 8) & 0xFF) / 255f, a = (v & 0xFF) / 255f };
+        }
+        else
+            ColorUtility.TryParseHtmlString("#" + hex, out c);
+        if (HexCache.Count < 4096)
+            HexCache[hex] = c;
         return c;
     }
 
@@ -82,9 +98,9 @@ internal static class HudStyle
         {
             if (_font != null && _font.WasCollected)
                 _font = null;
-            if (_font == null && Time.unscaledTime >= _nextFontSearch)
+            if (_font == null && Core.Fast.Unscaled >= _nextFontSearch)
             {
-                _nextFontSearch = Time.unscaledTime + 1f;
+                _nextFontSearch = Core.Fast.Unscaled + 1f;
                 try
                 {
                     _font = TMP_Settings.defaultFontAsset;
@@ -167,21 +183,95 @@ internal static class HudStyle
     public static void Place(Graphic graphic, float x, float y, float width, float height)
     {
         var rt = graphic.rectTransform;
-        rt.anchoredPosition = new Vector2(x, y);
-        rt.sizeDelta = new Vector2(Mathf.Max(0f, width), Mathf.Max(0f, height));
+        rt.anchoredPosition = new Vector2 { x = x, y = y };
+        rt.sizeDelta = new Vector2 { x = Math.Max(0f, width), y = Math.Max(0f, height) };
     }
 
     /// <summary>パネルの色と角の大きさ（画面の大きさに合わせる）。</summary>
     public static void StylePanel(Image panel, float scale)
     {
         panel.color = PanelColor;
-        panel.pixelsPerUnitMultiplier = 1f / Mathf.Max(0.1f, CornerScale * scale);
+        panel.pixelsPerUnitMultiplier = 1f / Math.Max(0.1f, CornerScale * scale);
     }
 
+    // 表示・非表示の状態を覚える（activeSelf を毎回読むと箱詰めのごみが出る）。キーは部品の C# 側の入れ物（使い回す部品は同じ入れ物）
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Component, StrongBox> ActiveState = new();
+
+    private sealed class StrongBox
+    {
+        public bool Value;
+    }
+
+    /// <summary>
+    /// 表示・非表示を切り替える（変わるときだけ）。MOD の UI 部品の表示の切り替えは全部ここを通す
+    /// （直接 gameObject.SetActive すると覚えた状態とずれる）。
+    /// </summary>
     public static void SetActive(Component component, bool active)
     {
-        if (component != null && component.gameObject.activeSelf != active)
-            component.gameObject.SetActive(active);
+        if (!Core.Fast.Alive(component))
+            return;
+        if (!ActiveState.TryGetValue(component, out var state))
+        {
+            state = new StrongBox { Value = component.gameObject.activeSelf };
+            ActiveState.Add(component, state);
+        }
+        if (state.Value == active)
+            return;
+        state.Value = active;
+        component.gameObject.SetActive(active);
+    }
+
+    /// <summary>表示されているか（SetActive で覚えた状態。覚えていなければ 1 回だけ読む）。</summary>
+    public static bool IsActive(Component component)
+    {
+        if (!Core.Fast.Alive(component))
+            return false;
+        if (!ActiveState.TryGetValue(component, out var state))
+        {
+            state = new StrongBox { Value = component.gameObject.activeSelf };
+            ActiveState.Add(component, state);
+        }
+        return state.Value;
+    }
+
+    private sealed class FloatBox
+    {
+        public float Value;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TMP_Text, FloatBox> FontSizeState = new();
+
+    /// <summary>文字の大きさを変える（同じなら何もしない。TMP の fontSize は同じ値でも毎回、文字の配置を作り直す）。</summary>
+    public static void SetFontSize(TMP_Text label, float size)
+    {
+        if (label is null || label.WasCollected)
+            return;
+        if (FontSizeState.TryGetValue(label, out var state))
+        {
+            if (state.Value == size)
+                return;
+            state.Value = size;
+        }
+        else
+            FontSizeState.Add(label, new FloatBox { Value = size });
+        label.fontSize = size;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TMP_Text, string> TextState = new();
+
+    /// <summary>文字を変える（同じなら何もしない。文字列をゲーム側に渡すたびに写しと翻訳の処理が走るため）。</summary>
+    public static void SetText(TMP_Text label, string text)
+    {
+        if (label is null || label.WasCollected)
+            return;
+        if (TextState.TryGetValue(label, out var last))
+        {
+            if (string.Equals(last, text, StringComparison.Ordinal))
+                return;
+            TextState.Remove(label);
+        }
+        TextState.Add(label, text ?? "");
+        label.text = text;
     }
 
     /// <summary>白い角丸の四角（9 スライス）。</summary>

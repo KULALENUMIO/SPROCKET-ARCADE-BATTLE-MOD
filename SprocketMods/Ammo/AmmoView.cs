@@ -59,7 +59,7 @@ internal sealed class AmmoView
         var x0 = Screen.width * 0.5f - total * 0.5f;
         var y0 = 22f * s - (slotH + 70f * s) * hide;
         var keys = new[] { KeyLabel(cfg.KeyAP.Value), KeyLabel(cfg.KeyAPHE.Value), KeyLabel(cfg.KeyHE.Value) };
-        var pop = 1f - Mathf.Clamp01((Time.unscaledTime - system.SelectedAt) / PopTime);
+        var pop = 1f - Mathf.Clamp01((Core.Fast.Unscaled - system.SelectedAt) / PopTime);
 
         for (var i = 0; i < 3; i++)
         {
@@ -104,23 +104,23 @@ internal sealed class AmmoView
                 HudStyle.Place(slot.Pie, cx - d * 0.5f, cy - d * 0.5f, d, d);
             }
 
-            slot.Key.text = keys[i];
-            slot.Key.fontSize = 12f * s;
+            HudStyle.SetText(slot.Key, keys[i]);
+            HudStyle.SetFontSize(slot.Key, 12f * s);
             slot.Key.color = selected ? Color.white : HudStyle.Hex(HudStyle.Grey);
             HudStyle.Place(slot.Key, x + 6f * s, y + h - 18f * s, 30f * s, 16f * s);
 
-            slot.Mark.gameObject.SetActive(ready);
+            HudStyle.SetActive(slot.Mark, ready);
             slot.Mark.color = colour;
-            slot.Mark.fontSize = 12f * s;
+            HudStyle.SetFontSize(slot.Mark, 12f * s);
             HudStyle.Place(slot.Mark, x + w - 36f * s, y + h - 18f * s, 30f * s, 16f * s);
 
-            slot.Name.text = "<b>" + AmmoSystem.ShortName(type) + "</b>";
-            slot.Name.fontSize = (selected ? 22f : 19f) * s;
+            HudStyle.SetText(slot.Name, "<b>" + AmmoSystem.ShortName(type) + "</b>");
+            HudStyle.SetFontSize(slot.Name, (selected ? 22f : 19f) * s);
             slot.Name.color = selected ? colour : HudStyle.Hex(HudStyle.White);
             HudStyle.Place(slot.Name, x, y + h * 0.36f, w, h * 0.42f);
 
-            slot.Sub.text = T(AmmoSystem.LongName(type));
-            slot.Sub.fontSize = 11f * s;
+            HudStyle.SetText(slot.Sub, T(AmmoSystem.LongName(type)));
+            HudStyle.SetFontSize(slot.Sub, 11f * s);
             slot.Sub.color = selected ? Color.white : HudStyle.Hex(HudStyle.Grey);
             HudStyle.Place(slot.Sub, x, y + 5f * s, w, h * 0.3f);
         }
@@ -139,10 +139,10 @@ internal sealed class AmmoView
         var text = "<b><color=#" + Colours[(int)chosen] + ">" + T(AmmoSystem.LongName(chosen)) + "</color></b>   " + state;
         if (text != _lastStatus)
         {
-            _status.text = text;
+            HudStyle.SetText(_status, text);
             _lastStatus = text;
         }
-        _status.fontSize = 15f * s;
+        HudStyle.SetFontSize(_status, 15f * s);
         HudStyle.Place(_status, x0 - 100f * s, y0 + slotH + 8f * s, total + 200f * s, 22f * s);
     }
 
@@ -193,7 +193,7 @@ internal sealed class AmmoView
             slot.Pie.fillClockwise = true;
             slot.Key = HudStyle.CreateText(t, "Key", TextAlignmentOptions.Left);
             slot.Mark = HudStyle.CreateText(t, "Mark", TextAlignmentOptions.Right);
-            slot.Mark.text = "●";
+            HudStyle.SetText(slot.Mark, "●");
             slot.Name = HudStyle.CreateText(t, "Name", TextAlignmentOptions.Center);
             slot.Sub = HudStyle.CreateText(t, "Sub", TextAlignmentOptions.Center);
             _slots[i] = slot;

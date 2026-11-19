@@ -41,7 +41,11 @@ public class HitCamConfig
         FittingOpacity = cfg.Bind(s, "FittingOpacity", 0.22f, new ConfigDescription("透かした後の外側の装備品（履帯・転輪・フェンダー・小物など）の濃さ。車体の装甲より濃くして形を見せる", new AcceptableValueRange<float>(0f, 1f)));
         FittingBrightness = cfg.Bind(s, "FittingBrightness", 0.5f, new ConfigDescription("外側の装備品を明るい灰色に寄せる度合い", new AcceptableValueRange<float>(0f, 1f)));
         Exposure = cfg.Bind(s, "Exposure", 13f, new ConfigDescription("ヒットカメラの露出（EV100。大きいほど暗い）", new AcceptableValueRange<float>(6f, 18f)));
+        LightRendering = cfg.Bind(s, "LightRendering", true,
+            "ヒットカメラの描画を軽くする（小さな画面では見えない SSAO・反射・霧・被写界深度などを切る。影・光・色は残す）。再起動で反映");
     }
+
+    public readonly ConfigEntry<bool> LightRendering;
 }
 
 /// <summary>命中の結果。</summary>
@@ -353,7 +357,9 @@ internal sealed unsafe class HitCamTracker
             capture.VictimName = "?";
         }
 
+        var perf7034 = SprocketMods.Debug.Perf.Begin();
         ReadFragments(sim, capture);
+        SprocketMods.Debug.Perf.End("HitCam/Capture/Fragments", perf7034);
         if (capture.Fragments.Count == 0)
             return;
         // 最初の破片（砲弾）は、この物理ステップの始めの砲弾の位置から、最初に当たった装甲の表面まで。その終わりが着弾点
@@ -364,7 +370,9 @@ internal sealed unsafe class HitCamTracker
         Dictionary<IntPtr, int> modules;
         try
         {
+            var perf4022 = SprocketMods.Debug.Perf.Begin();
             modules = CaptureModules(behaviour, capture);
+            SprocketMods.Debug.Perf.End("HitCam/Capture/Modules", perf4022);
         }
         catch (Exception ex)
         {
@@ -372,14 +380,16 @@ internal sealed unsafe class HitCamTracker
             modules = new Dictionary<IntPtr, int>();
             capture.Modules.Clear();
         }
+        var perf9686 = SprocketMods.Debug.Perf.Begin();
         CaptureParts(vehicle, capture, modules);
+        SprocketMods.Debug.Perf.End("HitCam/Capture/Parts", perf9686);
         if (capture.Parts.Count == 0)
             return;
         var check = capture.Bounds;
         check.Expand(0.6f);
-        if (!check.Contains(capture.Entry) && Time.unscaledTime >= _nextOutsideLog)
+        if (!check.Contains(capture.Entry) && Core.Fast.Unscaled >= _nextOutsideLog)
         {
-            _nextOutsideLog = Time.unscaledTime + 2f;
+            _nextOutsideLog = Core.Fast.Unscaled + 2f;
             var f0 = capture.Fragments[0];
             Plugin.Logger.LogInfo($"Hit cam: entry outside {capture.VictimName}: frags={capture.Fragments.Count} f0 flags=0x{f0.Flags:X} parent={f0.Parent} " +
                                   $"start={f0.Start} end={f0.End} bounds={capture.Bounds.center}/{capture.Bounds.size} sim pen pos={PenetratorPosition(sim) - capture.RootPosition}");
@@ -399,10 +409,10 @@ internal sealed unsafe class HitCamTracker
             if (note != null && _shots.TryGetValue(id > 0 ? id : near, out var shot))
                 shot.Events += $" sim[{capture.VictimName} {Outcome(capture)} frags={capture.Fragments.Count} parts={capture.Parts.Count} {note}]";
         }
-        else if (Cfg.AllShots.Value && Time.unscaledTime >= _nextDebugCapture)
+        else if (Cfg.AllShots.Value && Core.Fast.Unscaled >= _nextDebugCapture)
         {
             // 開発用: 誰の弾でも表示する（ダメージが入った後の次の Update で確定する）
-            _nextDebugCapture = Time.unscaledTime + 1f;
+            _nextDebugCapture = Core.Fast.Unscaled + 1f;
             _pending.Add(capture);
         }
     }
@@ -547,7 +557,9 @@ internal sealed unsafe class HitCamTracker
             if (capture.Confirmed || capture.Released)
                 continue;
             capture.Confirmed = true;
+            var perf5897 = SprocketMods.Debug.Perf.Begin();
             capture.Preserve();
+            SprocketMods.Debug.Perf.End("HitCam/Preserve", perf5897);
             Settle(capture);
             capture.Outcome = Decide(capture, 0);
             Hit?.Invoke(capture);
@@ -701,37 +713,11 @@ internal sealed unsafe class HitCamTracker
         if (renderers == null)
             return;
         var origin = capture.RootPosition;
-        var hasBounds = false;
-        var bounds = new Bounds();
 
         var combined = CombinedMeshes();
         _ownerMap = StructureOwners(vehicle);
-
-        // 描画グループの LOD 1 以降と影用の代わりのメッシュは描かない（LOD 0 と同じ場所に重なって、ちらつく）
+        var sources = Sources(vehicle, register, renderers);
         _skip.Clear();
-        var groups = register.groups;
-        if (groups != null)
-        {
-            for (var g = 0; g < groups.Count; g++)
-            {
-                var group = groups[g];
-                if (group == null)
-                    continue;
-                var lods = group.lods;
-                if (lods != null)
-                {
-                    for (var l = 1; l < lods.Length; l++)
-                    {
-                        var r = lods[l]?.renderer;
-                        if (r != null && (lods[0]?.renderer == null || lods[0].renderer.Pointer != r.Pointer))
-                            _skip.Add(r.Pointer);
-                    }
-                }
-                var shadow = group.shadow?.renderer;
-                if (shadow != null)
-                    _skip.Add(shadow.Pointer);
-            }
-        }
 
         // 弾薬庫: 遠くでは箱（低詳細の模型）で描かれ、中の砲弾 1 発ずつの模型は消されている。砲弾を写して、箱は写さない
         var racks = GetRacks(vehicle);
@@ -752,6 +738,15 @@ internal sealed unsafe class HitCamTracker
             }
         }
 
+        // 全体と部品ごとの範囲（float の最小・最大で持つ。Bounds の演算はゲーム側の呼び出しになるので使わない）
+        float bx0 = float.MaxValue, by0 = float.MaxValue, bz0 = float.MaxValue, bx1 = float.MinValue, by1 = float.MinValue, bz1 = float.MinValue;
+        var moduleBox = new float[capture.Modules.Count * 6];
+        for (var m = 0; m < capture.Modules.Count; m++)
+        {
+            moduleBox[m * 6] = moduleBox[m * 6 + 1] = moduleBox[m * 6 + 2] = float.MaxValue;
+            moduleBox[m * 6 + 3] = moduleBox[m * 6 + 4] = moduleBox[m * 6 + 5] = float.MinValue;
+        }
+
         void Add(Renderer renderer, Mesh mesh, bool owns, Matrix4x4 matrix, VehiclePartType partType, int forcedModule = -1)
         {
             var materials = renderer.sharedMaterials;
@@ -760,85 +755,88 @@ internal sealed unsafe class HitCamTracker
                 copy[m] = materials[m];
             var module = forcedModule >= 0 ? forcedModule : modules.TryGetValue(renderer.Pointer, out var m2) ? m2 : -1;
             var owner = (partType & (VehiclePartType.PlateStructure | VehiclePartType.PlateStructureInterior)) != 0 && _ownerMap.TryGetValue(renderer.Pointer, out var structure) ? structure : IntPtr.Zero;
-            var b = renderer.bounds;
-            b.center -= origin;
-            AddPart(mesh, owns, matrix, copy, partType, module, owner, b);
+            var mb = mesh.bounds;
+            AddPart(mesh, owns, matrix, copy, partType, module, owner, mb.center, mb.extents);
         }
 
-        void AddPart(Mesh mesh, bool owns, Matrix4x4 matrix, Material[] materials, VehiclePartType partType, int module, IntPtr owner, Bounds b)
+        // 部品を足す。範囲はメッシュの範囲（center / extents、メッシュの座標）を行列で手計算で移す
+        void AddPart(Mesh mesh, bool owns, Matrix4x4 matrix, Material[] materials, VehiclePartType partType, int module, IntPtr owner,
+            Vector3 centre, Vector3 extents)
         {
             capture.Parts.Add(new CapturedPart { Mesh = mesh, OwnsMesh = owns, Matrix = matrix, Materials = materials, PartType = partType, Module = module, Owner = owner });
+            float cx = centre.x, cy = centre.y, cz = centre.z, ex = extents.x, ey = extents.y, ez = extents.z;
+            var wx = matrix.m00 * cx + matrix.m01 * cy + matrix.m02 * cz + matrix.m03;
+            var wy = matrix.m10 * cx + matrix.m11 * cy + matrix.m12 * cz + matrix.m13;
+            var wz = matrix.m20 * cx + matrix.m21 * cy + matrix.m22 * cz + matrix.m23;
+            var hx = MathF.Abs(matrix.m00) * ex + MathF.Abs(matrix.m01) * ey + MathF.Abs(matrix.m02) * ez;
+            var hy = MathF.Abs(matrix.m10) * ex + MathF.Abs(matrix.m11) * ey + MathF.Abs(matrix.m12) * ez;
+            var hz = MathF.Abs(matrix.m20) * ex + MathF.Abs(matrix.m21) * ey + MathF.Abs(matrix.m22) * ez;
+            bx0 = MathF.Min(bx0, wx - hx);
+            by0 = MathF.Min(by0, wy - hy);
+            bz0 = MathF.Min(bz0, wz - hz);
+            bx1 = MathF.Max(bx1, wx + hx);
+            by1 = MathF.Max(by1, wy + hy);
+            bz1 = MathF.Max(bz1, wz + hz);
             if (module >= 0)
             {
-                var cm = capture.Modules[module];
-                if (cm.HasBounds)
-                    cm.Bounds.Encapsulate(b);
-                else
-                {
-                    cm.Bounds = b;
-                    cm.HasBounds = true;
-                }
-            }
-            if (hasBounds)
-                bounds.Encapsulate(b);
-            else
-            {
-                bounds = b;
-                hasBounds = true;
+                var o = module * 6;
+                moduleBox[o] = MathF.Min(moduleBox[o], wx - hx);
+                moduleBox[o + 1] = MathF.Min(moduleBox[o + 1], wy - hy);
+                moduleBox[o + 2] = MathF.Min(moduleBox[o + 2], wz - hz);
+                moduleBox[o + 3] = MathF.Max(moduleBox[o + 3], wx + hx);
+                moduleBox[o + 4] = MathF.Max(moduleBox[o + 4], wy + hy);
+                moduleBox[o + 5] = MathF.Max(moduleBox[o + 5], wz + hz);
             }
         }
 
-        for (var i = 0; i < renderers.Count && capture.Parts.Count < MaxParts; i++)
+        // 描画部品（変わらない情報は車両ごとに覚えた Sources から。命中ごとに読むのは隠す印・LOD の印（メモリから）、有効か、位置の行列だけ）
+        foreach (var source in sources)
         {
-            var vr = renderers[i];
-            if (vr == null)
-                continue;
-            var hide = (int)vr.HideFlags;
+            if (capture.Parts.Count >= MaxParts)
+                break;
             // MarkedForDestroy = 消える途中、User = 意図的に隠した。
             // Baked（結合メッシュに置き換え済み）は写す: エンジン・変速機・燃料タンク・弾薬庫などは遠くでは結合メッシュで描かれ、
             // 元の部品に Baked が付くが、結合メッシュは低い LOD の分しか無い（LOD 0 の姿は元の部品にしか無い）
+            var hide = *(byte*)(source.Vr + 0x18);
             if ((hide & (1 | 16)) != 0)
                 continue;
-            var lodMask = vr.lodMask;
+            var lodMask = *(byte*)(source.Vr + 0x14);
             if (lodMask != 0 && (lodMask & 1) == 0)
                 continue;
-            var partType = vr.associatedPartType;
-            if (partType == VehiclePartType.Decal)
-                continue;
-            var renderer = vr.renderer;
-            if (renderer == null || renderer.WasCollected || !renderer.gameObject.activeInHierarchy || _skip.Contains(renderer.Pointer))
-                continue;
-            if (renderer.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly)
+            var renderer = source.Renderer;
+            if (renderer == null || renderer.WasCollected || _skip.Contains(renderer.Pointer) || !source.GameObject.activeInHierarchy)
                 continue;
 
             Mesh mesh;
             var owns = false;
             Matrix4x4 matrix;
-            var skinned = renderer.TryCast<SkinnedMeshRenderer>();
-            if (skinned != null)
+            Vector3 centre, extents;
+            if (source.Skinned != null)
             {
-                if (skinned.sharedMesh == null)
-                    continue;
                 mesh = new Mesh();
-                skinned.BakeMesh(mesh, true);
+                source.Skinned.BakeMesh(mesh, true);
                 owns = true;
-                var t = skinned.transform;
+                var t = source.Skinned.transform;
                 matrix = Matrix4x4.TRS(t.position - origin, t.rotation, Vector3.one);
+                var mb = mesh.bounds;
+                centre = mb.center;
+                extents = mb.extents;
             }
             else
             {
-                var filter = renderer.GetComponent<MeshFilter>();
-                mesh = filter != null ? filter.sharedMesh : null;
-                if (mesh == null)
+                mesh = source.Mesh;
+                if (mesh == null || mesh.WasCollected || combined.Contains(mesh.Pointer))
                     continue;
-                var world = renderer.localToWorldMatrix;
-                matrix = Matrix4x4.Translate(-origin) * world;
+                // 撮影フレーム（車両の位置が原点）へ: 平行移動の列だけ引く
+                matrix = renderer.localToWorldMatrix;
+                matrix.m03 -= origin.x;
+                matrix.m13 -= origin.y;
+                matrix.m23 -= origin.z;
+                centre = source.Centre;
+                extents = source.Extents;
             }
-
-            // 結合メッシュそのもの（元の部品と重なる）は写さない
-            if (!owns && combined.Contains(mesh.Pointer))
-                continue;
-            Add(renderer, mesh, owns, matrix, partType);
+            var module = modules.TryGetValue(renderer.Pointer, out var index) ? index : -1;
+            AddPart(mesh, owns, matrix, source.Materials, source.PartType, module, source.Owner, centre, extents);
         }
 
         // 履帯: リンクごとの模型は描画の登録に入っていない（TrackBeltRenderer.models の MeshFilter）
@@ -929,10 +927,7 @@ internal sealed unsafe class HitCamTracker
                     continue;
                 var matrix = beltToWorld * Matrix4x4.TRS(new Vector3(t[0], 0f, t[1]), Quaternion.Euler(0f, t[2] * Mathf.Rad2Deg, -90f), scale);
                 var mb = mesh.bounds;
-                var b = new Bounds(matrix.MultiplyPoint3x4(mb.center), Vector3.zero);
-                for (var c = 0; c < 8; c++)
-                    b.Encapsulate(matrix.MultiplyPoint3x4(mb.center + Vector3.Scale(mb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1))));
-                AddPart(mesh, false, matrix, materials, VehiclePartType.TrackBelt, trackModule, IntPtr.Zero, b);
+                AddPart(mesh, false, matrix, materials, VehiclePartType.TrackBelt, trackModule, IntPtr.Zero, mb.center, mb.extents);
             }
         }
 
@@ -944,9 +939,126 @@ internal sealed unsafe class HitCamTracker
             Add(renderer, mesh, false, Matrix4x4.Translate(-origin) * filter.transform.localToWorldMatrix, VehiclePartType.Ammunition);
         }
 
-        capture.Bounds = bounds;
+        if (bx0 <= bx1)
+        {
+            var all = new Bounds();
+            all.SetMinMax(new Vector3 { x = bx0, y = by0, z = bz0 }, new Vector3 { x = bx1, y = by1, z = bz1 });
+            capture.Bounds = all;
+        }
+        for (var m = 0; m < capture.Modules.Count; m++)
+        {
+            var o = m * 6;
+            if (moduleBox[o] > moduleBox[o + 3])
+                continue;
+            var box = new Bounds();
+            box.SetMinMax(new Vector3 { x = moduleBox[o], y = moduleBox[o + 1], z = moduleBox[o + 2] },
+                new Vector3 { x = moduleBox[o + 3], y = moduleBox[o + 4], z = moduleBox[o + 5] });
+            capture.Modules[m].Bounds = box;
+            capture.Modules[m].HasBounds = true;
+        }
         LinkCrew(capture);
         MarkFittings(capture);
+    }
+
+    /// <summary>描画部品のうち、命中ごとに読み直さなくてよい情報（車両ごとに覚える）。</summary>
+    private sealed class PartSource
+    {
+        public IntPtr Vr; // VehicleRenderer（隠す印 +0x18・LOD の印 +0x14 をメモリから読む）
+        public Renderer Renderer;
+        public GameObject GameObject;
+        public SkinnedMeshRenderer Skinned;
+        public Mesh Mesh;
+        public Material[] Materials;
+        public VehiclePartType PartType;
+        public IntPtr Owner;
+        public Vector3 Centre; // メッシュの範囲（メッシュの座標）
+        public Vector3 Extents;
+    }
+
+    private sealed class SourceCache
+    {
+        public int Count;
+        public float Built;
+        public readonly List<PartSource> Parts = new();
+    }
+
+    private readonly Dictionary<IntPtr, SourceCache> _sources = new();
+
+    /// <summary>
+    /// 車両の描画部品の、変わらない情報（描画・メッシュ・材質・種類・範囲・どの板の構造か）。部品の数が変わるか 30 秒たったら作り直す。
+    /// 描画グループの LOD 1 以降と影用の代わりのメッシュ（LOD 0 と同じ場所に重なってちらつく）、デカール、影だけの描画はここで外す。
+    /// </summary>
+    private List<PartSource> Sources(Vehicle vehicle, VehicleRendererRegister register, Il2CppSystem.Collections.Generic.List<VehicleRenderer> renderers)
+    {
+        var count = renderers.Count;
+        var now = Core.Fast.Unscaled;
+        if (_sources.TryGetValue(vehicle.Pointer, out var cache) && cache.Count == count && now - cache.Built < 30f)
+            return cache.Parts;
+        if (_sources.Count > 48)
+            _sources.Clear();
+        cache = new SourceCache { Count = count, Built = now };
+        _sources[vehicle.Pointer] = cache;
+
+        var groupSkip = new HashSet<IntPtr>();
+        var groups = register.groups;
+        for (var g = 0; groups != null && g < groups.Count; g++)
+        {
+            var group = groups[g];
+            if (group == null)
+                continue;
+            var lods = group.lods;
+            if (lods != null)
+            {
+                for (var l = 1; l < lods.Length; l++)
+                {
+                    var r = lods[l]?.renderer;
+                    if (r != null && (lods[0]?.renderer == null || lods[0].renderer.Pointer != r.Pointer))
+                        groupSkip.Add(r.Pointer);
+                }
+            }
+            var shadow = group.shadow?.renderer;
+            if (shadow != null)
+                groupSkip.Add(shadow.Pointer);
+        }
+        for (var i = 0; i < count; i++)
+        {
+            var vr = renderers[i];
+            if (vr == null)
+                continue;
+            var partType = vr.associatedPartType;
+            if (partType == VehiclePartType.Decal)
+                continue;
+            var renderer = vr.renderer;
+            if (renderer == null || renderer.WasCollected || groupSkip.Contains(renderer.Pointer)
+                || renderer.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly)
+                continue;
+            var source = new PartSource { Vr = vr.Pointer, Renderer = renderer, GameObject = renderer.gameObject, PartType = partType };
+            var skinned = renderer.TryCast<SkinnedMeshRenderer>();
+            if (skinned != null)
+            {
+                if (skinned.sharedMesh == null)
+                    continue;
+                source.Skinned = skinned;
+            }
+            else
+            {
+                var filter = renderer.GetComponent<MeshFilter>();
+                source.Mesh = filter != null ? filter.sharedMesh : null;
+                if (source.Mesh == null)
+                    continue;
+                var mb = source.Mesh.bounds;
+                source.Centre = mb.center;
+                source.Extents = mb.extents;
+            }
+            var materials = renderer.sharedMaterials;
+            source.Materials = new Material[materials?.Length ?? 0];
+            for (var m = 0; m < source.Materials.Length; m++)
+                source.Materials[m] = materials[m];
+            source.Owner = (partType & (VehiclePartType.PlateStructure | VehiclePartType.PlateStructureInterior)) != 0
+                           && _ownerMap.TryGetValue(renderer.Pointer, out var owner) ? owner : IntPtr.Zero;
+            cache.Parts.Add(source);
+        }
+        return cache.Parts;
     }
 
     private Dictionary<IntPtr, IntPtr> _ownerMap = new();
@@ -959,7 +1071,7 @@ internal sealed unsafe class HitCamTracker
     /// </summary>
     private Dictionary<IntPtr, IntPtr> StructureOwners(Vehicle vehicle)
     {
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         if (_structureMaps.TryGetValue(vehicle.Pointer, out var cached) && now - cached.Time < 5f)
             return cached.Map;
         if (_structureMaps.Count > 64)
@@ -1165,9 +1277,9 @@ internal sealed unsafe class HitCamTracker
     /// <summary>VehicleRendererAtlaser が部品をまとめて作った結合メッシュ（1 秒ごとに読み直す）。</summary>
     private HashSet<IntPtr> CombinedMeshes()
     {
-        if (Time.unscaledTime < _nextCombinedRefresh)
+        if (Core.Fast.Unscaled < _nextCombinedRefresh)
             return _combined;
-        _nextCombinedRefresh = Time.unscaledTime + 1f;
+        _nextCombinedRefresh = Core.Fast.Unscaled + 1f;
         _combined.Clear();
         try
         {
@@ -1217,7 +1329,7 @@ internal sealed unsafe class HitCamTracker
 
     public void Update()
     {
-        if (!Cfg.Enabled.Value || Time.timeScale <= 0f)
+        if (!Cfg.Enabled.Value || Core.Fast.TimeScale <= 0f)
             return;
         if (!_killsSubscribed && KillFeed.KillTracker.Instance != null)
         {
@@ -1237,9 +1349,9 @@ internal sealed unsafe class HitCamTracker
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Hit cam failed: {e}");
             }
         }
@@ -1252,7 +1364,7 @@ internal sealed unsafe class HitCamTracker
         var history = DamageModel.ProjectileRegister?.TryCast<ProjectileRegister>()?.projectileHistory;
         if (history == null)
             return;
-        var now = Time.time;
+        var now = Core.Fast.GameTime;
         _finished.Clear();
         foreach (var pair in _shots)
         {
@@ -1326,7 +1438,9 @@ internal sealed unsafe class HitCamTracker
         }
 
         best.Confirmed = true;
+        var perf5897 = SprocketMods.Debug.Perf.Begin();
         best.Preserve();
+        SprocketMods.Debug.Perf.End("HitCam/Preserve", perf5897);
         Settle(best);
         if (hit.Normal.sqrMagnitude > 1e-6f)
             best.Normal = hit.Normal.normalized;
@@ -1394,7 +1508,9 @@ internal sealed unsafe class HitCamTracker
         if (capture == null || sim == null || capture.Fragments.Count > 1400)
             return;
         var start = capture.Fragments.Count;
+        var perf7034 = SprocketMods.Debug.Perf.Begin();
         ReadFragments(sim, capture);
+        SprocketMods.Debug.Perf.End("HitCam/Capture/Fragments", perf7034);
         if (capture.Fragments.Count == start)
             return;
         var origin = capture.Fragments[start].Start;
@@ -1597,7 +1713,7 @@ internal sealed unsafe class HitCamTracker
     /// <summary>確定してから 1.5 秒の間に燃え始めた車両は、その命中で火災が起きたとする。</summary>
     private void WatchFires()
     {
-        var now = Time.time;
+        var now = Core.Fast.GameTime;
         foreach (var capture in _recent)
         {
             if (!capture.Confirmed || capture.Released || capture.WasOnFire || capture.FireStarted || now - capture.ConfirmedAt > 1.5f)
@@ -1616,7 +1732,7 @@ internal sealed unsafe class HitCamTracker
 
     private void Audit()
     {
-        var now = Time.time;
+        var now = Core.Fast.GameTime;
         foreach (var capture in _recent)
         {
             if (capture.Released || capture.Audited)
@@ -1863,9 +1979,9 @@ internal sealed unsafe class HitCamTracker
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         var body = _controller?.ControlledVehicle?.Rigidbody;

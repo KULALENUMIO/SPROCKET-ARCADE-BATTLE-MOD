@@ -18,6 +18,7 @@ internal static class Patches
 {
     public static void Apply(Harmony harmony)
     {
+        SprocketMods.Debug.GameTiming.Patch(harmony);
         TryPatch(harmony, typeof(PowertrainBehaviour), nameof(PowertrainBehaviour.FixedUpdate),
             prefix: nameof(PowertrainFixedUpdatePrefix));
         TryPatch(harmony, typeof(Sprocket.Vehicles.CrewSystems.Driver), nameof(Sprocket.Vehicles.CrewSystems.Driver.ExecutePerform),
@@ -79,29 +80,45 @@ internal static class Patches
 
     private static void PenetratePrefix(ref Sprocket.DamageModelling.PenetratorInfo penetrator, out int __state)
     {
-        __state = -1;
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            __state = SprocketMods.Ammo.AmmoSystem.BeforePenetrate(ref penetrator);
+            __state = -1;
+            try
+            {
+                __state = SprocketMods.Ammo.AmmoSystem.BeforePenetrate(ref penetrator);
+            }
+            catch (Exception e)
+            {
+                Plugin.Logger.LogError($"Ammo (before penetration) failed: {e}");
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Plugin.Logger.LogError($"Ammo (before penetration) failed: {e}");
+            SprocketMods.Debug.Perf.End("Patch.PenetratePrefix", perf);
         }
     }
 
     private static void PenetratePostfix(Sprocket.DamageModelling.CompoundStructure __instance, Sprocket.DamageModelling.PenetratorInfo penetrator,
         Sprocket.DamageModelling.IPenetrationSimulation __result, int __state)
     {
-        if (__state < 0)
-            return;
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            SprocketMods.Ammo.AmmoSystem.AfterPenetrate(__instance, penetrator, __result, __state);
+            if (__state < 0)
+                return;
+            try
+            {
+                SprocketMods.Ammo.AmmoSystem.AfterPenetrate(__instance, penetrator, __result, __state);
+            }
+            catch (Exception e)
+            {
+                Plugin.Logger.LogError($"Ammo (after penetration) failed: {e}");
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Plugin.Logger.LogError($"Ammo (after penetration) failed: {e}");
+            SprocketMods.Debug.Perf.End("Patch.PenetratePostfix", perf);
         }
     }
 
@@ -114,13 +131,21 @@ internal static class Patches
     private static void ImmobilizeObjectivePostfix(Sprocket.MissionFramework.ImmobilizeObjective __instance,
         ref Sprocket.MissionFramework.ObjectiveResult __result)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            SprocketMods.KillFeed.DefeatRule.AfterUpdate(__instance, ref __result);
+            try
+            {
+                SprocketMods.KillFeed.DefeatRule.AfterUpdate(__instance, ref __result);
+            }
+            catch (Exception e)
+            {
+                Plugin.Logger.LogError($"Defeat rule failed: {e}");
+            }
         }
-        catch (Exception e)
+        finally
         {
-            Plugin.Logger.LogError($"Defeat rule failed: {e}");
+            SprocketMods.Debug.Perf.End("Patch.ImmobilizeObjective", perf);
         }
     }
 
@@ -133,14 +158,22 @@ internal static class Patches
     /// <summary>破棄済みのエフェクトは解放しない。例外になるとメニューへ戻るシーン遷移ごと止まる。</summary>
     private static bool EffectReleasePrefix(Sprocket.EffectRegister __instance, int index)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            return !SprocketMods.Design.SandboxSpawner.SkipDestroyedEffect(__instance, index);
+            try
+            {
+                return !SprocketMods.Design.SandboxSpawner.SkipDestroyedEffect(__instance, index);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+                return true;
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
-            return true;
+            SprocketMods.Debug.Perf.End("Patch.EffectRelease", perf);
         }
     }
 
@@ -196,11 +229,19 @@ internal static class Patches
     /// </summary>
     private static void PowertrainFixedUpdatePrefix(PowertrainBehaviour __instance)
     {
-        var arcade = ArcadeController.Instance;
-        if (arcade == null || !Plugin.Arcade.Enabled.Value)
-            return;
-        if (__instance.Pointer == arcade.TunedPowertrain)
-            arcade.BeforePowertrainFixedUpdate(__instance);
+        var perf = SprocketMods.Debug.Perf.Begin();
+        try
+        {
+            var arcade = ArcadeController.Instance;
+            if (arcade == null || !Plugin.Arcade.Enabled.Value)
+                return;
+            if (__instance.Pointer == arcade.TunedPowertrain)
+                arcade.BeforePowertrainFixedUpdate(__instance);
+        }
+        finally
+        {
+            SprocketMods.Debug.Perf.End("Patch.PowertrainFixedUpdate", perf);
+        }
     }
 
     /// <summary>修理中の車両は操縦手の入力（前後・左右）を 0 にする。エンジン・変速機が WASD に一切反応しなくなる。</summary>
@@ -231,13 +272,21 @@ internal static class Patches
         ref Sprocket.ArtificialIntelligence.GunLayerTaskInfo info, ref Sprocket.ArtificialIntelligence.GunLayerInstructions output,
         ref Sprocket.ArtificialIntelligence.GunLayerTaskResult __result)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            SprocketMods.Ai.AiDirector.Instance?.AdjustAim(__instance.Pointer, info.PivotPosition, ref output, ref __result);
+            try
+            {
+                SprocketMods.Ai.AiDirector.Instance?.AdjustAim(__instance.Pointer, info.PivotPosition, ref output, ref __result);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
+            SprocketMods.Debug.Perf.End("Patch.FindAndAim", perf);
         }
     }
 
@@ -282,28 +331,44 @@ internal static class Patches
 
     private static void CanFirePostfix(WeaponBehaviour __instance, ref bool __result)
     {
-        if (!__result)
-            return;
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            __result = Autocannons.FilterCanFire(__instance, true);
+            if (!__result)
+                return;
+            try
+            {
+                __result = Autocannons.FilterCanFire(__instance, true);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
+            SprocketMods.Debug.Perf.End("Patch.CanFire", perf);
         }
     }
 
     private static bool LoadTaskUpdatePrefix(LoadTask __instance, float travelSpeed, float manipulationSpeed, float deltaTime)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            return Autocannons.ReplaceLoadTaskUpdate(__instance, travelSpeed, manipulationSpeed, deltaTime);
+            try
+            {
+                return Autocannons.ReplaceLoadTaskUpdate(__instance, travelSpeed, manipulationSpeed, deltaTime);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+                return true;
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
-            return true;
+            SprocketMods.Debug.Perf.End("Patch.LoadTaskUpdate", perf);
         }
     }
 
@@ -312,39 +377,63 @@ internal static class Patches
 
     private static void LoadFractionPostfix(LoadTask __instance, ref float __result)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            __result = Autocannons.FilterLoadFraction(__instance, __result);
+            try
+            {
+                __result = Autocannons.FilterLoadFraction(__instance, __result);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
+            SprocketMods.Debug.Perf.End("Patch.LoadFraction", perf);
         }
     }
 
     private static void RemainingTimePostfix(LoadTask __instance, ref float __result)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            __result = Autocannons.FilterRemainingTime(__instance, __result);
+            try
+            {
+                __result = Autocannons.FilterRemainingTime(__instance, __result);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
+            SprocketMods.Debug.Perf.End("Patch.RemainingTime", perf);
         }
     }
 
     /// <summary>Cannon.OnFire（車体への反動）と VehicleController.OnWeaponFire（画面の揺れ）。機関砲なら飛ばす。</summary>
     private static bool RecoilPrefix(Il2CppSystem.Object sender)
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
-            return !Autocannons.SkipRecoil(sender);
+            try
+            {
+                return !Autocannons.SkipRecoil(sender);
+            }
+            catch (Exception e)
+            {
+                LogAutocannonError(e);
+                return true;
+            }
         }
-        catch (Exception e)
+        finally
         {
-            LogAutocannonError(e);
-            return true;
+            SprocketMods.Debug.Perf.End("Patch.Recoil", perf);
         }
     }
 
@@ -357,8 +446,9 @@ internal static class Patches
 
     private static float _nextAutocannonErrorLog;
 
-    private static void Guard(Action action)
+    private static void Guard(Action action, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
     {
+        var perf = SprocketMods.Debug.Perf.Begin();
         try
         {
             action();
@@ -367,13 +457,17 @@ internal static class Patches
         {
             LogAutocannonError(e);
         }
+        finally
+        {
+            SprocketMods.Debug.Perf.End("Patch." + caller, perf);
+        }
     }
 
     private static void LogAutocannonError(Exception e)
     {
-        if (UnityEngine.Time.unscaledTime < _nextAutocannonErrorLog)
+        if (SprocketMods.Core.Fast.Unscaled < _nextAutocannonErrorLog)
             return;
-        _nextAutocannonErrorLog = UnityEngine.Time.unscaledTime + 5f;
+        _nextAutocannonErrorLog = SprocketMods.Core.Fast.Unscaled + 5f;
         Plugin.Logger.LogError($"Autocannon failed: {e}");
     }
 }

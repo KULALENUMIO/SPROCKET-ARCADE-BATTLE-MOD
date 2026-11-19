@@ -13,7 +13,7 @@ namespace SprocketMods;
 public class Plugin : BasePlugin
 {
     public const string Guid = "sprocketmods";
-    public const string Version = "1.11.0";
+    public const string Version = "1.12.0";
 
     internal static ManualLogSource Logger;
     internal static HudConfig Cfg;

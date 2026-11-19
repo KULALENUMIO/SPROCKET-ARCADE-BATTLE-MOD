@@ -43,7 +43,7 @@ internal sealed class TeamBarView
     public void LateUpdate()
     {
         var tracker = TeamStrengthTracker.Instance;
-        var show = Plugin.TeamBar.Enabled.Value && tracker != null && tracker.Valid && Time.timeScale > 0f;
+        var show = Plugin.TeamBar.Enabled.Value && tracker != null && tracker.Valid && Core.Fast.TimeScale > 0f;
         _alpha = Mathf.MoveTowards(_alpha, show ? 1f : 0f, Time.unscaledDeltaTime / FadeTime);
         if (_alpha <= 0f || tracker == null || !Ensure())
         {
@@ -90,8 +90,8 @@ internal sealed class TeamBarView
             cx + centerGap * 0.5f, 1f, barLength, barY, barHeight, scale);
 
         var font = 26f * scale;
-        _friendly.Count.fontSize = font;
-        _enemy.Count.fontSize = font;
+        HudStyle.SetFontSize(_friendly.Count, font);
+        HudStyle.SetFontSize(_enemy.Count, font);
         HudStyle.Place(_friendly.Count, left + pad, bottom, numberWidth, height);
         HudStyle.Place(_enemy.Count, right - pad - numberWidth, bottom, numberWidth, height);
     }
@@ -100,7 +100,7 @@ internal sealed class TeamBarView
     private void DrawSide(Side side, int alive, int total, string hex, float origin, float direction, float length,
         float y, float height, float scale)
     {
-        var now = Time.unscaledTime;
+        var now = Core.Fast.Unscaled;
         if (side.LastAlive >= 0 && alive < side.LastAlive)
         {
             side.LostFrom = alive;
@@ -113,7 +113,7 @@ internal sealed class TeamBarView
         text = "<color=#" + hex + ">" + text + "</color>";
         if (text != side.LastText)
         {
-            side.Count.text = text;
+            HudStyle.SetText(side.Count, text);
             side.LastText = text;
         }
 

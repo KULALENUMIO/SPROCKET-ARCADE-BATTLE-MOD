@@ -107,9 +107,9 @@ internal sealed class LocalizationManager
     {
         if (SprocketMods.UI.KeyInput.Down(ReloadKey.Value))
             Reload();
-        if (_translator != null && Time.unscaledTime >= _nextFlush)
+        if (_translator != null && Core.Fast.Unscaled >= _nextFlush)
         {
-            _nextFlush = Time.unscaledTime + 5f;
+            _nextFlush = Core.Fast.Unscaled + 5f;
             _translator.FlushUntranslated();
         }
     }

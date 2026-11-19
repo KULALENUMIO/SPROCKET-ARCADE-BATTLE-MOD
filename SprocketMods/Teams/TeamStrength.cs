@@ -100,13 +100,13 @@ internal sealed class TeamStrengthTracker
         {
             var unit = pair.Value;
             var vehicle = unit.Vehicle;
-            if (!unit.Present || vehicle == null || vehicle.WasCollected)
+            if (!unit.Present || !Core.Fast.Alive(vehicle))
                 continue;
-            var transform = vehicle.transform;
+            Core.Fast.Pose(vehicle.transform, out var position, out var rotation);
             var side = pair.Key == _playerVehicle ? KillFeed.Side.Player
                 : unit.Team == TeamID.None || _playerTeam == TeamID.None ? KillFeed.Side.Neutral
                 : unit.Team == _playerTeam ? KillFeed.Side.Friendly : KillFeed.Side.Enemy;
-            list.Add(new MapUnit(transform.position, transform.forward, side, unit.Alive));
+            list.Add(new MapUnit(position, Core.Fast.Forward(rotation), side, unit.Alive));
         }
     }
 
@@ -119,7 +119,7 @@ internal sealed class TeamStrengthTracker
         }
         try
         {
-            var now = Time.unscaledTime;
+            var now = Core.Fast.Unscaled;
             if (now >= _nextSearch)
             {
                 _nextSearch = now + SearchInterval;
@@ -134,9 +134,9 @@ internal sealed class TeamStrengthTracker
         catch (Exception e)
         {
             Valid = false;
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Team strength failed: {e}");
             }
         }
@@ -146,12 +146,10 @@ internal sealed class TeamStrengthTracker
     private void Search()
     {
         _seen.Clear();
-        var found = Object.FindObjectsByType(Il2CppType.Of<VehicleBehaviour>(), FindObjectsSortMode.None);
-        if (found != null)
+        var found = Core.VehicleRegistry.Behaviours;
         {
-            foreach (var obj in found)
+            foreach (var vehicle in found)
             {
-                var vehicle = obj?.TryCast<VehicleBehaviour>();
                 if (vehicle == null)
                     continue;
                 _seen.Add(vehicle.Pointer);
@@ -279,9 +277,9 @@ internal sealed class TeamStrengthTracker
     {
         if (_controller != null && _controller.WasCollected)
             _controller = null;
-        if (_controller == null && Time.unscaledTime >= _nextControllerSearch)
+        if (_controller == null && Core.Fast.Unscaled >= _nextControllerSearch)
         {
-            _nextControllerSearch = Time.unscaledTime + 1f;
+            _nextControllerSearch = Core.Fast.Unscaled + 1f;
             _controller = Object.FindAnyObjectByType(Il2CppType.Of<VehicleController>())?.TryCast<VehicleController>();
         }
         _playerVehicle = IntPtr.Zero;

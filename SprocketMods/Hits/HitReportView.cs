@@ -52,7 +52,7 @@ internal sealed class HitReportView
         var tracker = HitTracker.Instance;
         var data = cfg.Enabled.Value ? tracker?.Current : null;
         var alpha = data == null ? 0f : Mathf.Clamp01((cfg.Duration.Value - (Time.time - data.LastChange)) / FadeTime);
-        if (alpha <= 0f || Time.timeScale <= 0f || !Ensure())
+        if (alpha <= 0f || Core.Fast.TimeScale <= 0f || !Ensure())
         {
             SetActive(false);
             return;
@@ -82,9 +82,9 @@ internal sealed class HitReportView
             _ => ("NON-PENETRATION", GreyHex),
         };
         _accentHex = colour;
-        _header.text = "<b><color=#" + colour + ">" + T(header) + "</color></b>";
+        HudStyle.SetText(_header, "<b><color=#" + colour + ">" + T(header) + "</color></b>");
         var showCount = data.Hits > 1 && data.Outcome != HitOutcome.KnockedOut;
-        _count.text = showCount ? "<color=#" + HudStyle.Grey + ">×" + data.Hits + "</color>" : string.Empty;
+        HudStyle.SetText(_count, showCount ? "<color=#" + HudStyle.Grey + ">×" + data.Hits + "</color>" : string.Empty);
 
         _rowCount = 0;
         var max = Plugin.HitReport.MaxLines.Value;
@@ -120,7 +120,7 @@ internal sealed class HitReportView
         if (data.Modules.Count == 0 && !data.OnFire && data.Outcome >= HitOutcome.Penetration)
             _sb.Append("<color=#").Append(HudStyle.Grey).Append('>').Append(T("No damage")).Append("</color>");
         _hasNote = _sb.Length > 0;
-        _note.text = _sb.ToString();
+        HudStyle.SetText(_note, _sb.ToString());
         HudStyle.SetActive(_note, _hasNote);
     }
 
@@ -163,9 +163,9 @@ internal sealed class HitReportView
 
         var x = left + pad + accentWidth;
         var y = top - pad;
-        _header.fontSize = font * 1.3f;
+        HudStyle.SetFontSize(_header, font * 1.3f);
         HudStyle.Place(_header, x, y - headerHeight, inner - font * 3f, headerHeight);
-        _count.fontSize = font * 1.1f;
+        HudStyle.SetFontSize(_count, font * 1.1f);
         HudStyle.Place(_count, x + inner - font * 3f, y - headerHeight, font * 3f, headerHeight);
         y -= headerHeight;
 
@@ -184,7 +184,7 @@ internal sealed class HitReportView
         }
         if (_hasNote)
         {
-            _note.fontSize = font;
+            HudStyle.SetFontSize(_note, font);
             HudStyle.Place(_note, x, y - noteHeight, inner, noteHeight);
         }
     }

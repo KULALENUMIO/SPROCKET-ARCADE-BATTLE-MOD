@@ -39,17 +39,20 @@ internal sealed class MinimapView
     private TextMeshProUGUI _scale;
     private Texture2D _shownTexture;
     private float _nextErrorLog;
+    private bool _rootActive;
 
     public void LateUpdate()
     {
         var cfg = Plugin.Minimap;
         var tracker = TeamStrengthTracker.Instance;
-        if (!cfg.Enabled.Value || tracker == null || !tracker.HasPlayer || Time.timeScale <= 0f || !Ensure())
+        if (!cfg.Enabled.Value || tracker == null || !tracker.HasPlayer || Core.Fast.TimeScale <= 0f || !Ensure())
         {
             SetActive(false);
             return;
         }
+        var perf = Debug.Perf.Begin();
         tracker.CollectUnits(_units);
+        Debug.Perf.End("Minimap/Collect", perf);
         _positions.Clear();
         foreach (var u in _units)
             _positions.Add(u.Position);
@@ -59,9 +62,9 @@ internal sealed class MinimapView
         }
         catch (Exception e)
         {
-            if (Time.unscaledTime >= _nextErrorLog)
+            if (Core.Fast.Unscaled >= _nextErrorLog)
             {
-                _nextErrorLog = Time.unscaledTime + 5f;
+                _nextErrorLog = Core.Fast.Unscaled + 5f;
                 Plugin.Logger.LogError($"Minimap terrain failed: {e}");
             }
         }
@@ -76,7 +79,7 @@ internal sealed class MinimapView
 
     private void Draw(MinimapConfig cfg)
     {
-        var s = Screen.height / 1080f;
+        var s = Core.Fast.ScreenHeight / 1080f;
         var size = cfg.Size.Value * s;
         var margin = 14f * s;
         var pad = 5f * s;
@@ -88,62 +91,67 @@ internal sealed class MinimapView
         var mapY = margin + pad;
 
         HudStyle.StylePanel(_panel, HudStyle.Scale);
-        var pc = _panel.color;
-        pc.a = Mathf.Min(1f, pc.a * 1.3f);
+        var pc = HudStyle.PanelColor;
+        pc.a = Math.Min(1f, pc.a * 1.3f);
         _panel.color = pc;
         HudStyle.Place(_panel, margin, margin, width, height);
 
-        if (_map.Texture != _shownTexture)
+        var texture = _map.Texture;
+        if (texture?.Pointer != _shownTexture?.Pointer)
         {
-            _shownTexture = _map.Texture;
+            _shownTexture = texture;
             _image.texture = _shownTexture;
         }
-        HudStyle.SetActive(_image, _map.Texture != null);
+        HudStyle.SetActive(_image, texture is not null);
         HudStyle.Place(_image, mapX, mapY, size, size);
 
         var ready = _map.Ready;
         HudStyle.SetActive(_status, !ready);
         if (!ready)
         {
-            _status.fontSize = 15f * s;
-            _status.text = "<color=#" + HudStyle.Grey + ">" + T("Generating map…") + "</color>";
+            HudStyle.SetFontSize(_status, 15f * s);
+            HudStyle.SetText(_status, "<color=#" + HudStyle.Grey + ">" + T("Generating map…") + "</color>");
             HudStyle.Place(_status, mapX, mapY, size, size);
         }
 
-        var region = _map.Region;
-        var cell = DrawGrid(grid && ready, region, mapX, mapY, size, band, s);
+        float rx = _map.RegionX, ry = _map.RegionY, rw = _map.RegionSize;
+        var perf = Debug.Perf.Begin();
+        var cell = DrawGrid(grid && ready, rw, mapX, mapY, size, band, s);
+        Debug.Perf.End("Minimap/Grid", perf);
         HudStyle.SetActive(_scale, ready);
         if (ready)
         {
-            _scale.fontSize = 12f * s;
-            _scale.text = "<color=#" + HudStyle.White + ">" + (grid ? cell : MapTerrain.GridCell(region.width)).ToString("0") + " m</color>";
+            HudStyle.SetFontSize(_scale, 12f * s);
+            HudStyle.SetText(_scale, "<color=#" + HudStyle.White + ">" + (grid ? cell : MapTerrain.GridCell(rw)).ToString("0") + " m</color>");
             HudStyle.Place(_scale, mapX, mapY + 2f * s, size - 4f * s, 16f * s);
         }
 
-        DrawUnits(cfg, ready, region, mapX, mapY, size, s);
+        perf = Debug.Perf.Begin();
+        DrawUnits(cfg, ready, rx, ry, rw, mapX, mapY, size, s);
+        Debug.Perf.End("Minimap/Units", perf);
     }
 
     // ------------------------------------------------------------------ マス目
 
-    private float DrawGrid(bool visible, Rect region, float mapX, float mapY, float size, float band, float s)
+    private float DrawGrid(bool visible, float rw, float mapX, float mapY, float size, float band, float s)
     {
-        var cell = MapTerrain.GridCell(region.width);
-        var count = visible ? Mathf.Clamp(Mathf.CeilToInt(region.width / cell - 0.01f), 1, 26) : 0;
+        var cell = MapTerrain.GridCell(rw);
+        var count = visible ? Math.Clamp((int)MathF.Ceiling(rw / cell - 0.01f), 1, 26) : 0;
         var lines = 0;
         var labels = 0;
-        var pixelsPerMetre = size / Mathf.Max(1f, region.width);
+        var pixelsPerMetre = size / MathF.Max(1f, rw);
         for (var i = 0; i < count; i++)
         {
             var offset = i * cell * pixelsPerMetre;
-            var next = Mathf.Min(size, (i + 1) * cell * pixelsPerMetre);
+            var next = MathF.Min(size, (i + 1) * cell * pixelsPerMetre);
             if (i > 0)
             {
-                Line(lines++, mapX + offset, mapY, Mathf.Max(1f, s), size); // 縦線
-                Line(lines++, mapX, mapY + size - offset, size, Mathf.Max(1f, s)); // 横線
+                Line(lines++, mapX + offset, mapY, MathF.Max(1f, s), size); // 縦線
+                Line(lines++, mapX, mapY + size - offset, size, MathF.Max(1f, s)); // 横線
             }
             // 列番号（上）と行の記号（左、北から A）
-            Label(labels++, (i + 1).ToString(), mapX + offset, mapY + size, next - offset, band, s);
-            Label(labels++, ((char)('A' + i)).ToString(), mapX - band, mapY + size - next, band, next - offset, s);
+            Label(labels++, ColumnNames[i], mapX + offset, mapY + size, next - offset, band, s);
+            Label(labels++, RowNames[i], mapX - band, mapY + size - next, band, next - offset, s);
         }
         for (var i = lines; i < _gridLines.Count; i++)
             HudStyle.SetActive(_gridLines[i], false);
@@ -158,7 +166,7 @@ internal sealed class MinimapView
             _gridLines.Add(HudStyle.CreateImage(_gridLayer, "GridLine", false));
         var line = _gridLines[index];
         HudStyle.SetActive(line, true);
-        line.color = new Color(0f, 0f, 0f, 0.28f);
+        line.color = Core.Fast.Rgba(0f, 0f, 0f, 0.28f);
         HudStyle.Place(line, x, y, w, h);
     }
 
@@ -168,14 +176,14 @@ internal sealed class MinimapView
             _gridLabels.Add(HudStyle.CreateText(_gridLayer, "GridLabel", TextAlignmentOptions.Center));
         var label = _gridLabels[index];
         HudStyle.SetActive(label, true);
-        label.fontSize = 11f * s;
-        label.text = "<color=#" + HudStyle.Grey + ">" + text + "</color>";
+        HudStyle.SetFontSize(label, 11f * s);
+        HudStyle.SetText(label, text);
         HudStyle.Place(label, x, y, w, h);
     }
 
     // ------------------------------------------------------------------ 車両
 
-    private void DrawUnits(MinimapConfig cfg, bool ready, Rect region, float mapX, float mapY, float size, float s)
+    private void DrawUnits(MinimapConfig cfg, bool ready, float rx, float ry, float rw, float mapX, float mapY, float size, float s)
     {
         var used = 0;
         Image playerMarker = null;
@@ -192,9 +200,9 @@ internal sealed class MinimapView
                         continue;
                     if (u.Side == Side.Enemy && !cfg.ShowEnemies.Value)
                         continue;
-                    var fx = Mathf.Clamp01((u.Position.x - region.x) / region.width);
-                    var fy = Mathf.Clamp01((u.Position.z - region.y) / region.height);
-                    var pos = new Vector2(mapX + fx * size, mapY + fy * size);
+                    var fx = Core.Fast.Clamp01((u.Position.x - rx) / rw);
+                    var fy = Core.Fast.Clamp01((u.Position.z - ry) / rw);
+                    var pos = Core.Fast.V2(mapX + fx * size, mapY + fy * size);
                     var marker = GetMarker(used++);
                     var colour = HudStyle.Hex(u.Side switch
                     {
@@ -207,21 +215,21 @@ internal sealed class MinimapView
                     var rt = marker.rectTransform;
                     if (u.Alive)
                     {
-                        marker.sprite = _arrow;
+                        SetSprite(marker, _arrow);
                         markerSize = (u.Side == Side.Player ? 17f : 13f) * s;
-                        var heading = Mathf.Atan2(u.Forward.x, u.Forward.z) * Mathf.Rad2Deg;
-                        rt.localEulerAngles = new Vector3(0f, 0f, -heading);
+                        var heading = MathF.Atan2(u.Forward.x, u.Forward.z) * (180f / MathF.PI);
+                        rt.localRotation = Core.Fast.RotZ(-heading);
                     }
                     else
                     {
-                        marker.sprite = _cross;
+                        SetSprite(marker, _cross);
                         markerSize = 10f * s;
-                        colour = Color.Lerp(colour, new Color(0.15f, 0.15f, 0.15f), 0.45f);
-                        rt.localEulerAngles = Vector3.zero;
+                        colour = Core.Fast.Lerp(colour, Core.Fast.Rgba(0.15f, 0.15f, 0.15f), 0.45f);
+                        rt.localRotation = Core.Fast.RotZ(0f);
                     }
                     marker.color = colour;
                     rt.anchoredPosition = pos;
-                    rt.sizeDelta = new Vector2(markerSize, markerSize);
+                    rt.sizeDelta = Core.Fast.V2(markerSize, markerSize);
                     if (u.Side == Side.Player)
                     {
                         playerMarker = marker;
@@ -232,32 +240,55 @@ internal sealed class MinimapView
         }
         for (var i = used; i < _markers.Count; i++)
             HudStyle.SetActive(_markers[i], false);
-        DrawView(cfg.ShowViewDirection.Value && playerMarker != null, playerPos, size, s);
+        DrawView(cfg.ShowViewDirection.Value && playerMarker is not null, playerPos, size, s);
     }
 
     /// <summary>自車からカメラの視野の左右の端の 2 本の線。</summary>
     private void DrawView(bool visible, Vector2 origin, float size, float s)
     {
         var camera = Hits.HitTracker.Instance?.ActiveCamera;
-        visible &= camera != null;
+        visible &= Core.Fast.Alive(camera);
         HudStyle.SetActive(_viewLeft, visible);
         HudStyle.SetActive(_viewRight, visible);
         if (!visible)
             return;
-        var forward = camera.transform.forward;
-        var heading = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
-        var halfFov = Mathf.Atan(Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad) * camera.aspect) * Mathf.Rad2Deg;
-        halfFov = Mathf.Clamp(halfFov, 1.5f, 60f);
+        Core.Fast.Pose(camera.transform, out _, out var rotation);
+        var forward = Core.Fast.Forward(rotation);
+        const float toDegrees = 180f / MathF.PI;
+        var heading = MathF.Atan2(forward.x, forward.z) * toDegrees;
+        var halfFov = MathF.Atan(MathF.Tan(camera.fieldOfView * 0.5f / toDegrees) * camera.aspect) * toDegrees;
+        halfFov = Math.Clamp(halfFov, 1.5f, 60f);
         var length = size * 0.2f;
-        foreach (var (line, angle) in new[] { (_viewLeft, heading - halfFov), (_viewRight, heading + halfFov) })
-        {
-            line.color = new Color(1f, 1f, 1f, 0.55f);
-            var rt = line.rectTransform;
-            rt.anchoredPosition = origin;
-            rt.sizeDelta = new Vector2(length, Mathf.Max(1f, 1.5f * s));
-            // 画像は右（東）向き。北から時計回りの角度を UI の回転（反時計回り、東 = 0）に直す
-            rt.localEulerAngles = new Vector3(0f, 0f, 90f - angle);
-        }
+        PlaceViewLine(_viewLeft, heading - halfFov, origin, length, s);
+        PlaceViewLine(_viewRight, heading + halfFov, origin, length, s);
+    }
+
+    private static void PlaceViewLine(Image line, float angle, Vector2 origin, float length, float s)
+    {
+        line.color = Core.Fast.Rgba(1f, 1f, 1f, 0.55f);
+        var rt = line.rectTransform;
+        rt.anchoredPosition = origin;
+        rt.sizeDelta = Core.Fast.V2(length, MathF.Max(1f, 1.5f * s));
+        // 画像は右（東）向き。北から時計回りの角度を UI の回転（反時計回り、東 = 0）に直す
+        rt.localRotation = Core.Fast.RotZ(90f - angle);
+    }
+
+    // マス目の番号（毎フレーム文字列を作らない）
+    private static readonly string[] ColumnNames = MakeNames(i => (i + 1).ToString());
+    private static readonly string[] RowNames = MakeNames(i => ((char)('A' + i)).ToString());
+
+    private static string[] MakeNames(Func<int, string> name)
+    {
+        var names = new string[26];
+        for (var i = 0; i < names.Length; i++)
+            names[i] = "<color=#" + HudStyle.Grey + ">" + name(i) + "</color>";
+        return names;
+    }
+
+    private static void SetSprite(Image image, Sprite sprite)
+    {
+        if (image.sprite?.Pointer != sprite?.Pointer)
+            image.sprite = sprite;
     }
 
     private Image GetMarker(int index)
@@ -284,20 +315,23 @@ internal sealed class MinimapView
 
     private void SetActive(bool active)
     {
-        if (_root != null && !_root.WasCollected && _root.activeSelf != active)
-            _root.SetActive(active);
+        if (!Core.Fast.Alive(_root) || _rootActive == active)
+            return;
+        _rootActive = active;
+        _root.SetActive(active);
     }
 
     private bool Ensure()
     {
-        if (_root != null && _root.WasCollected)
+        if (_root is not null && !Core.Fast.Alive(_root))
             _root = null;
-        if (_root != null)
+        if (_root is not null)
             return true;
         if (HudStyle.Font == null)
             return false;
         EnsureSprites();
         _root = HudStyle.CreateCanvas("SprocketMinimap", 29990, out _group);
+        _rootActive = _root.activeSelf;
         var t = _root.transform;
         _panel = HudStyle.CreateImage(t, "Panel", true);
         var go = new GameObject("Map");
